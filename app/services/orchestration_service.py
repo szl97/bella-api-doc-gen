@@ -3,6 +3,7 @@ import httpx # For making HTTP requests
 import json
 from typing import Optional, Dict
 
+from .callback_service import push_to_repo_callback, custom_api_callback
 from ..core.database import get_session_scope
 from ..crud import crud_project
 
@@ -55,7 +56,7 @@ async def initiate_doc_generation_process(project_id: int):
     logger.info(f"Orchestration Service: Starting documentation generation process for project ID: {project_id}")
 
     with get_session_scope() as db:
-        project = crud_project.get_project(db, project_id=project_id)
+        project = crud_project.get_project_for_update(db, project_id=project_id)
 
     if not project:
         logger.error(f"Project with ID {project_id} not found. Cannot initiate documentation generation.")
@@ -163,11 +164,10 @@ async def get_previous_spec(db: Session, project: ProjectModel) -> Optional[Dict
         return None
 
 
-async def initiate_doc_generation_process(project_id: int):
+async def initiate_doc_generation_process(project_id: int, apikey: str):
     """
     Main orchestration function to generate documentation for a project.
     """
-    callback_successful = False # Initialize callback_successful
 
     with get_session_scope() as db:
         project = crud_project.get_project(db, project_id=project_id)
@@ -180,6 +180,7 @@ async def initiate_doc_generation_process(project_id: int):
 
         if project.status == ProjectStatusEnum.pending:
             logger.warning(f"Project {project.name} (ID: {project.id}) is already in 'pending' state. Reprocessing allowed.")
+            return
         
         # 1. Initial Setup & Status Update
         crud_project.update_project_status(db, project_id=project.id, status=ProjectStatusEnum.pending)
@@ -229,7 +230,7 @@ async def initiate_doc_generation_process(project_id: int):
         }
         logger.info(f"Spec diff report summary: {diff_summary}")
         # For more detailed logging if needed:
-        # logger.debug(f"Full spec_diff_report: {spec_diff_report}")
+        logger.debug(f"Full spec_diff_report: {spec_diff_report}")
 
 
         # 5. Targeted Description Completion (Demo) - Conceptual Update

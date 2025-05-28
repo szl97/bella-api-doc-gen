@@ -3,13 +3,20 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
 from ..models.project import Project, Project as ProjectModel # For ListeningModeEnum
-from ..schemas.project import ProjectCreate, ProjectUpdate
+from ..schemas.project import ProjectBase, ProjectUpdate
+
 
 def get_project(db: Session, project_id: int) -> Optional[Project]:
     """
     Retrieves a project by its ID.
     """
     return db.query(Project).filter(Project.id == project_id).first()
+
+def get_project_for_update(db: Session, project_id: int) -> Optional[Project]:
+    """
+    Retrieves a project by its ID for update.
+    """
+    return db.query(Project).filter(Project.id == project_id).with_for_update().first()
 
 def get_project_by_name(db: Session, name: str) -> Optional[Project]:
     """
@@ -25,7 +32,7 @@ def get_projects(db: Session, skip: int = 0, limit: int = 100) -> List[Project]:
 
 # Removed get_projects_by_listening_mode as listening_mode field was removed from Project model.
 
-def create_project(db: Session, project: ProjectCreate) -> Project:
+def create_project(db: Session, project: ProjectBase, apikey: str) -> Project:
     """
     Creates a new project.
     - Before saving git_auth_token and custom_api_token, add a comment placeholder like # TODO: Encrypt token before saving.
@@ -44,7 +51,7 @@ def create_project(db: Session, project: ProjectCreate) -> Project:
     from ..core.security import hash_token
     
     # Hash the provided bearer_token for storing
-    hashed_bearer_token = hash_token(project.bearer_token)
+    hashed_bearer_token = hash_token(apikey)
 
     # Create the Project instance with new field names and default status
     db_project = Project(
@@ -53,11 +60,10 @@ def create_project(db: Session, project: ProjectCreate) -> Project:
         source_openapi_url=project.source_openapi_url, # New field name
         git_repo_url=project.git_repo_url,
         git_auth_token=project.git_auth_token,
-        listening_mode=project.listening_mode, # Default is 'api_only' in model
         callback_type=project.callback_type,
         custom_callback_url=project.custom_callback_url, # New field name
         custom_callback_token=project.custom_callback_token, # New field name
-        status=ProjectModel.status.type.enum_class.pending # Default status on creation
+        status=ProjectModel.status.type.enum_class.init # Default status on creation
     )
     db.add(db_project)
     db.commit()

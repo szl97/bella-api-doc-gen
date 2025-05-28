@@ -10,7 +10,7 @@ Bella API Doc Gen is an API service designed to automatically generate and updat
 *   **Callback Mechanisms:**
     *   **Push to Git Repository:** Automatically commit and push the generated OpenAPI spec to a specified Git repository.
     *   **Custom API Endpoint:** Send the generated OpenAPI spec to a user-defined API endpoint.
-*   **Project Status Tracking:** Monitor the state of projects (`pending`, `active`, `failed`).
+*   **Project Status Tracking:** Monitor the state of projects (`in` `pending`, `active`, `failed`).
 *   **(Placeholder) OpenAPI Spec Diffing:** Identifies changes between the current source spec and the previously generated one to enable targeted processing.
 *   **(Placeholder) Targeted Description Completion:** Future capability to use LLMs to enrich descriptions for new or modified parts of the API specification.
 
@@ -29,10 +29,10 @@ This token is defined by you when creating the project and is unique to that pro
 
 *   **`POST /projects`**
     *   **Description:** Registers a new project for documentation generation.
+    *   **Request Header:** Authorization: `Bearer {apikey}`
     *   **Request Body:**
         *   `name` (string, required): Unique name for the project.
         *   `source_openapi_url` (string, required): URL to fetch the source OpenAPI 3.0 JSON spec.
-        *   `bearer_token` (string, required): The secret token for authenticating API requests for this project.
         *   `callback_type` (string, required): How to dispatch the generated spec. Enum: `push_to_repo` or `custom_api`.
         *   `git_repo_url` (string, optional): URL of the Git repository (required if `callback_type` is `push_to_repo`).
         *   `git_auth_token` (string, optional): Authentication token for the Git repository (e.g., GitHub PAT).
@@ -47,7 +47,6 @@ This token is defined by you when creating the project and is unique to that pro
 ```json
 {
   "name": "My Awesome API Project",
-  "bearer_token": "this_is_my_secret_project_token_123",
   "source_openapi_url": "https://api.example.com/v1/openapi.json",
   "callback_type": "push_to_repo",
   "git_repo_url": "https://github.com/your_username/my-awesome-api-docs.git",
@@ -60,7 +59,6 @@ This token is defined by you when creating the project and is unique to that pro
 ```json
 {
   "name": "My Other Service Docs",
-  "bearer_token": "another_strong_token_for_this_project",
   "source_openapi_url": "https://my.service.com/api/swagger.json",
   "callback_type": "custom_api",
   "custom_callback_url": "https://my.webhook-receiver.com/api/receive-openapi",
@@ -71,7 +69,6 @@ This token is defined by you when creating the project and is unique to that pro
 **Field Descriptions (briefly):**
 
 *   `name`: Unique project name.
-*   `bearer_token`: Your secret token for authenticating future requests for THIS project.
 *   `source_openapi_url`: URL for Bella to fetch your latest OpenAPI spec.
 *   `callback_type`: `push_to_repo` or `custom_api`.
 *   `git_repo_url`: Required if `callback_type` is `push_to_repo`.
@@ -97,9 +94,9 @@ This token is defined by you when creating the project and is unique to that pro
     *   **Description:** Deletes a registered project. Requires Bearer token authentication for this project.
     *   **Response:** The details of the deleted project.
 
-### Documentation Generation (`/gen-api-doc`)
+### Documentation Generation (`/gen`)
 
-*   **`POST /gen-api-doc/{project_id}`**
+*   **`POST /gen/{project_id}`**
     *   **Description:** Triggers the documentation generation and processing workflow for a specific project. Requires Bearer token authentication for this project.
     *   **Response:** `202 Accepted` if the generation process is successfully initiated. The process runs in the background.
 
@@ -131,7 +128,7 @@ This token is defined by you when creating the project and is unique to that pro
     *   (Future) The changes are then merged into a new version of the specification.
     *   (Currently) The fetched source spec is processed as a whole by the placeholder description completion and then sent to the callback.
 7.  **Dispatch via Callback:** The newly processed OpenAPI specification is dispatched using your configured `callback_type` (e.g., pushed to your Git repo or sent to your custom API).
-8.  **Status Update:** The project's status (`pending`, `active`, `failed`) is updated to reflect the outcome of the generation process.
+8.  **Status Update:** The project's status (`init`, `pending`, `active`, `failed`) is updated to reflect the outcome of the generation process.
 
 ## Setup & Running (Basic - Conceptual)
 
@@ -202,10 +199,3 @@ You can set this `DATABASE_URL` in a couple of ways:
     ```
 
 The application is configured by default to use a SQLite database (`sqlite:///./test.db`) if `DATABASE_URL` is not otherwise specified, which is convenient for quick local testing but not suitable for production.
-
-## Removed Features
-
-*   **Scheduled Monitoring:** The service no longer supports automated, scheduled (cron-like) monitoring of repositories for changes. Documentation generation is now triggered exclusively via API calls.
-*   **Old CICD Webhook:** The previous unauthenticated `/webhook/cicd` endpoint has been removed. It is replaced by the authenticated `POST /v1/api-doc/gen-api-doc/{project_id}` endpoint, which requires a project-specific Bearer token.
-
-This provides a more secure and controllable way to trigger documentation updates.

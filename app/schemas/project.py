@@ -17,10 +17,6 @@ class ProjectBase(BaseModel):
     custom_callback_url: Optional[str] = Field(None, max_length=512, description="URL for Bella to POST to if callback_type is 'custom_api'.")
     custom_callback_token: Optional[str] = Field(None, max_length=512, description="Token for Bella to auth with the custom_callback_url. Not returned in API responses.")
 
-class ProjectCreate(ProjectBase):
-    bearer_token: str = Field(..., min_length=10, description="The Bearer token for authenticating API requests for this project. Will be hashed and stored.")
-    # status is not settable by user on creation, defaulted in DB.
-    # token_hash is generated from bearer_token, not user-settable.
 
 class ProjectUpdate(BaseModel): # Using BaseModel for full flexibility, all fields optional
     name: Optional[str] = Field(None, min_length=1, max_length=255)
@@ -68,7 +64,6 @@ class Project(ProjectBase):
 # Update __all__ to reflect removal of ListeningModeEnum and other changes
 __all__ = [
     "ProjectBase",
-    "ProjectCreate",
     "ProjectUpdate",
     "Project",         # General Project schema (includes potentially sensitive inherited fields if not careful)
     "ProjectResponse", # Cleaned response schema

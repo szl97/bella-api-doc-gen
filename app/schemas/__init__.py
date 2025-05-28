@@ -1,6 +1,5 @@
 from .project import (
     ProjectBase,
-    ProjectCreate,
     ProjectUpdate,
     Project, # Original Project schema
     ProjectResponse, # New explicit response schema
@@ -10,7 +9,6 @@ from .project import (
 
 __all__ = [
     "ProjectBase",
-    "ProjectCreate",
     "ProjectUpdate",
     "Project",
     "ProjectResponse",

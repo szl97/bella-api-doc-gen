@@ -5,6 +5,7 @@ from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base()
 
 class ProjectStatusEnum(str, enum.Enum):
+    init = "init"
     pending = "pending"
     active = "active"
     failed = "failed"
@@ -35,7 +36,7 @@ class Project(Base):
     custom_callback_url = Column(String(512), nullable=True)
     custom_callback_token = Column(String(512), nullable=True)
 
-    status = Column(SQLEnum(ProjectStatusEnum), nullable=False, default=ProjectStatusEnum.pending)
+    status = Column(SQLEnum(ProjectStatusEnum), nullable=False, default=ProjectStatusEnum.init)
     
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
