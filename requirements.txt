@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+mysql-connector-python
+gitpython
+requests
+pydantic[email]
+httpx  # For asynchronous HTTP requests
+pydantic-settings
