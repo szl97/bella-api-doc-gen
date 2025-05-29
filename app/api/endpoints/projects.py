@@ -1,18 +1,17 @@
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Path as FastAPIPath, BackgroundTasks # Added BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks  # Added BackgroundTasks
 from sqlalchemy.orm import Session
 
-from ...core import oauth2_scheme
+from ...core import oauth2_scheme, hash_token
 from ...core.database import get_db
-from ...schemas.project import ProjectResponse, ProjectUpdate, ProjectBase
-from ...crud import crud_project
-from ...models import project as project_model # To type hint current_project
-from ...core.dependencies import get_current_project # Import the new dependency
-from ...services.orchestration_service import initiate_doc_generation_process # Import for background task
+from ...core.dependencies import get_current_project  # Import the new dependency
+from ...crud import crud_project, crud_task  # Added crud_task
+from ...models import project as project_model  # To type hint current_project
+from ...schemas.project import ProjectResponse, ProjectUpdate, ProjectBase, ProjectCreationResponse  # Updated import
+from ...services.orchestration_service import initiate_doc_generation_process  # Import for background task
 
 router = APIRouter()
 
-@router.post("/", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED) # Changed response_model
+@router.post("/", response_model=ProjectCreationResponse, status_code=status.HTTP_201_CREATED) # Changed response_model
 def create_project_endpoint(
     project_in: ProjectBase, # Renamed to project_in to avoid confusion with returned project
     db: Session = Depends(get_db),
@@ -22,11 +21,39 @@ def create_project_endpoint(
 ):
     # The CRUD function already handles the HTTPException for duplicate names
     created_project = crud_project.create_project(db=db, project=project_in, apikey=token)
-    # Trigger initial documentation generation in the background
-    background_tasks.add_task(initiate_doc_generation_process, project_id=created_project.id, apikey= token)
     
-    return created_project
+    # Create a new task for this project creation
+    db_task = crud_task.create_task(db=db, project_id=created_project.id)
+    
+    # Trigger initial documentation generation in the background, now passing task_id
+    background_tasks.add_task(initiate_doc_generation_process, project_id=created_project.id, apikey=token, task_id=db_task.id)
+    
+    # Construct and return the ProjectCreationResponse
+    # Ensure all fields for ProjectResponse are available from created_project.
+    # Pydantic models can be created from ORM objects using `from_orm` if Config.from_attributes = True (which it is for ProjectResponse)
+    # Or by spreading the dictionary of the ORM object.
+    
+    # Create the response object
+    response_data = {
+        "id": created_project.id,
+        "name": created_project.name,
+        "status": created_project.status,
+        "source_openapi_url": created_project.source_openapi_url,
+        "git_repo_url": created_project.git_repo_url,
+        "created_at": created_project.created_at,
+        "updated_at": created_project.updated_at,
+        "task_id": db_task.id,
+        "message": f"Documentation generation process initiated for project: {created_project.name}"
+    }
+    return ProjectCreationResponse(**response_data)
 
+@router.get("/list", response_model=list[ProjectResponse])
+def list_project_endpoint(
+        db: Session = Depends(get_db),
+        token: str = Depends(oauth2_scheme),
+):
+    token_hash = hash_token(token)
+    return crud_project.get_projects_by_token_hash(db, token_hash = token_hash)
 
 @router.get("/{project_id}", response_model=ProjectResponse)
 def read_project_endpoint(

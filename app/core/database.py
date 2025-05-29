@@ -1,8 +1,9 @@
+from contextlib import contextmanager  # For get_session_scope
+
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
-# Removed: sqlalchemy.ext.declarative.declarative_base (Base is now imported from models)
-from ..core.config import settings # Import settings to use DATABASE_URL
-from contextlib import contextmanager # For get_session_scope
+from sqlalchemy.orm import sessionmaker
+
+from ..core.config import settings  # Import settings to use DATABASE_URL
 
 # Define DATABASE_URL using the one from settings
 DATABASE_URL = settings.DATABASE_URL

@@ -1,10 +1,16 @@
 from typing import Optional, List
-from sqlalchemy.orm import Session
-from fastapi import HTTPException, status
 
-from ..models.project import Project, Project as ProjectModel # For ListeningModeEnum
+from fastapi import HTTPException, status
+from sqlalchemy.exc import OperationalError  # Added
+from sqlalchemy.orm import Session
+
+from ..models.project import Project, ProjectStatusEnum  # Updated import
 from ..schemas.project import ProjectBase, ProjectUpdate
 
+
+# Custom exception for lock errors
+class ProjectLockedError(Exception):
+    pass
 
 def get_project(db: Session, project_id: int) -> Optional[Project]:
     """
@@ -14,9 +20,33 @@ def get_project(db: Session, project_id: int) -> Optional[Project]:
 
 def get_project_for_update(db: Session, project_id: int) -> Optional[Project]:
     """
-    Retrieves a project by its ID for update.
+    Retrieves a project by its ID for update, using NOWAIT to avoid blocking.
+    Raises ProjectLockedError if the row is locked.
     """
-    return db.query(Project).filter(Project.id == project_id).with_for_update().first()
+    try:
+        # Attempt to import psycopg2 errors for specific lock checking
+        try:
+            import psycopg2.errors
+            LockNotAvailable = psycopg2.errors.LockNotAvailable
+        except ImportError:
+            LockNotAvailable = None # Fallback if psycopg2 is not available or not the driver
+
+        db_project = db.query(Project).filter(Project.id == project_id).with_for_update(nowait=True).first()
+        return db_project
+    except OperationalError as e:
+        # Check if the error is due to a lock not being available
+        # This check might need to be adapted based on the specific database and driver
+        if LockNotAvailable and isinstance(e.orig, LockNotAvailable):
+            raise ProjectLockedError(f"Project {project_id} is locked by another process.") from e
+        # A more generic check (less precise) if specific error type is unknown or not psycopg2
+        # For example, some drivers might have a specific SQLSTATE or error code.
+        # This part might need adjustment for other DBs like MySQL.
+        # If e.g. e.orig has a .pgcode or similar attribute for SQLSTATE '55P03' (lock_not_available for PostgreSQL)
+        # elif hasattr(e.orig, 'pgcode') and e.orig.pgcode == '55P03':
+        #     raise ProjectLockedError(f"Project {project_id} is locked by another process.") from e
+        else:
+            # If it's another OperationalError, re-raise it
+            raise e
 
 def get_project_by_name(db: Session, name: str) -> Optional[Project]:
     """
@@ -24,11 +54,11 @@ def get_project_by_name(db: Session, name: str) -> Optional[Project]:
     """
     return db.query(Project).filter(Project.name == name).first()
 
-def get_projects(db: Session, skip: int = 0, limit: int = 100) -> List[Project]:
+def get_projects_by_token_hash(db: Session, token_hash: str) -> Optional[list[Project]]:
     """
-    Retrieves a list of projects with pagination.
+    Retrieves a list of projects with hash token.
     """
-    return db.query(Project).offset(skip).limit(limit).all()
+    return db.query(Project).filter(Project.token_hash == token_hash).all()
 
 # Removed get_projects_by_listening_mode as listening_mode field was removed from Project model.
 
@@ -53,17 +83,14 @@ def create_project(db: Session, project: ProjectBase, apikey: str) -> Project:
     # Hash the provided bearer_token for storing
     hashed_bearer_token = hash_token(apikey)
 
-    # Create the Project instance with new field names and default status
+    # Create the Project instance
     db_project = Project(
         name=project.name,
         token_hash=hashed_bearer_token,
-        source_openapi_url=project.source_openapi_url, # New field name
+        source_openapi_url=project.source_openapi_url,
         git_repo_url=project.git_repo_url,
-        git_auth_token=project.git_auth_token,
-        callback_type=project.callback_type,
-        custom_callback_url=project.custom_callback_url, # New field name
-        custom_callback_token=project.custom_callback_token, # New field name
-        status=ProjectModel.status.type.enum_class.init # Default status on creation
+        git_auth_token=project.git_auth_token, # TODO: Encrypt token before saving
+        status=ProjectStatusEnum.init # Default status on creation
     )
     db.add(db_project)
     db.commit()
@@ -84,16 +111,12 @@ def update_project(db: Session, project_id: int, project_update: ProjectUpdate) 
 
     for field_name, value in update_data.items():
         if field_name == "bearer_token" and value is not None:
-            # Hash the new bearer_token and update token_hash
-            db_project.token_hash = hash_token(value)
-            # Do not set the bearer_token field directly on the model if it doesn't exist
+            db_project.token_hash = hash_token(value) # Hash the new bearer_token
         elif field_name == "git_auth_token" and value is not None:
             # TODO: Encrypt token if updated (for git_auth_token)
             setattr(db_project, field_name, value)
-        elif field_name == "custom_callback_token" and value is not None: # Updated field name
-            # TODO: Encrypt token if updated (for custom_callback_token)
-            setattr(db_project, field_name, value)
-        else:
+        # Removed handling for custom_callback_token and callback_type
+        elif field_name not in ["callback_type", "custom_callback_url", "custom_callback_token"]: # Ensure removed fields are not set
             setattr(db_project, field_name, value)
 
     db.add(db_project)
@@ -113,7 +136,7 @@ def delete_project(db: Session, project_id: int) -> Optional[Project]:
     db.commit()
     return db_project
 
-def update_project_status(db: Session, project_id: int, status: ProjectModel.status.type.enum_class) -> Optional[Project]:
+def update_project_status(db: Session, project_id: int, status: ProjectStatusEnum) -> Optional[Project]: # Updated enum type
     """
     Updates the status of a project.
     """

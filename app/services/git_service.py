@@ -2,8 +2,7 @@ import logging
 import os
 import shutil
 import tempfile
-from pathlib import Path
-from typing import Optional, Tuple, List, Dict
+from typing import Optional
 from urllib.parse import urlparse, urlunparse
 
 import git
@@ -11,7 +10,7 @@ import git
 logger = logging.getLogger(__name__)
 
 
-def get_repo_url_with_auth(git_repo_url: str, token: Optional[str]) -> str:
+def _get_repo_url_with_auth(git_repo_url: str, token: Optional[str]) -> str:
     """
     构造带有认证信息的 Git 仓库 URL（针对 HTTPS URL）
     如果 token 为 None 或 URL 不是 HTTPS，则返回原始 URL
@@ -85,7 +84,7 @@ def clone_repo(repo_url: str, target_dir: str, auth_token: Optional[str] = None)
     """
     try:
         # 添加认证信息到 URL
-        repo_url_with_auth = get_repo_url_with_auth(repo_url, auth_token)
+        repo_url_with_auth = _get_repo_url_with_auth(repo_url, auth_token)
         
         logger.info(f"Cloning repository from {repo_url} to {target_dir}...")
         repo = git.Repo.clone_from(repo_url_with_auth, target_dir)
@@ -120,7 +119,7 @@ def pull_repo(repo: git.Repo, branch: str = None, auth_token: Optional[str] = No
         
         # 如果提供了 repo_url 和 auth_token，确保远程 URL 包含认证信息
         if repo_url and auth_token:
-            repo_url_with_auth = get_repo_url_with_auth(repo_url, auth_token)
+            repo_url_with_auth = _get_repo_url_with_auth(repo_url, auth_token)
             if origin.url != repo_url_with_auth:
                 origin.set_url(repo_url_with_auth, origin.url)
                 logger.info("Updated remote URL to include auth token.")
@@ -145,91 +144,3 @@ def pull_repo(repo: git.Repo, branch: str = None, auth_token: Optional[str] = No
     except Exception as e:
         logger.error(f"Unexpected error during pull: {e}")
         return False
-
-
-def commit_and_push(repo: git.Repo, 
-                   file_paths: List[str], 
-                   commit_message: str,
-                   auth_token: Optional[str] = None, 
-                   repo_url: Optional[str] = None) -> bool:
-    """
-    提交并推送更改
-    
-    Args:
-        repo: Git 仓库对象
-        file_paths: 要提交的文件路径列表
-        commit_message: 提交信息
-        auth_token: 认证令牌（可选）
-        repo_url: 仓库 URL（可选，用于更新远程 URL 的认证信息）
-        
-    Returns:
-        是否成功提交并推送
-    """
-    try:
-        # 添加文件到暂存区
-        repo.index.add(file_paths)
-        logger.info(f"Added {len(file_paths)} files to staging area.")
-        
-        # 提交更改
-        repo.index.commit(commit_message)
-        logger.info(f"Committed changes with message: '{commit_message}'.")
-        
-        # 推送更改
-        origin = repo.remotes.origin
-        
-        # 如果提供了 repo_url 和 auth_token，确保远程 URL 包含认证信息
-        if repo_url and auth_token:
-            repo_url_with_auth = get_repo_url_with_auth(repo_url, auth_token)
-            if origin.url != repo_url_with_auth:
-                origin.set_url(repo_url_with_auth, origin.url)
-                logger.info("Updated remote URL to include auth token for push.")
-        
-        # 推送到远程
-        push_info_list = origin.push()
-        
-        # 检查推送结果
-        successful_push = True
-        for push_info in push_info_list:
-            if push_info.flags & git.remote.PushInfo.ERROR:
-                logger.error(f"Error during push: {push_info.summary}")
-                successful_push = False
-                break
-            elif push_info.flags & git.remote.PushInfo.REJECTED:
-                logger.error(f"Push rejected: {push_info.summary}")
-                successful_push = False
-                break
-        
-        if successful_push:
-            logger.info("Successfully pushed changes to remote repository.")
-            return True
-        else:
-            logger.error("Failed to push changes due to errors or rejections.")
-            return False
-    except git.exc.GitCommandError as e:
-        logger.error(f"Git command error during commit or push: {e}")
-        return False
-    except Exception as e:
-        logger.error(f"Unexpected error during commit or push: {e}")
-        return False
-
-
-def is_repo_dirty(repo: git.Repo, file_paths: Optional[List[str]] = None) -> bool:
-    """
-    检查仓库是否有未提交的更改
-    
-    Args:
-        repo: Git 仓库对象
-        file_paths: 要检查的文件路径列表（可选，如果为 None，则检查整个仓库）
-        
-    Returns:
-        是否有未提交的更改
-    """
-    if file_paths:
-        # 检查特定文件
-        for path in file_paths:
-            if repo.is_dirty(path=path) or path in repo.untracked_files:
-                return True
-        return False
-    else:
-        # 检查整个仓库
-        return repo.is_dirty(untracked_files=True)

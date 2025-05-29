@@ -1,81 +1,71 @@
 # Bella API Doc Gen Service
 
-Bella API Doc Gen is an API service designed to automatically generate and update OpenAPI 3.0 documentation. It works by fetching a source OpenAPI specification, optionally processing it (e.g., with an LLM for description enrichment - a future capability), and then dispatching the processed specification via configured callback mechanisms.
+Bella API Doc Gen is an API service designed to automatically generate and update OpenAPI 3.0 documentation. It works by fetching a source OpenAPI specification, processing it, and storing the result in a database. Users can track the generation process via a task ID and retrieve the generated OpenAPI JSON through a dedicated API endpoint.
 
 ## Features
 
-*   **Project Registration:** Configure projects with specific details including source OpenAPI URL, callback type, and credentials for Git or custom APIs.
+*   **Project Registration:** Configure projects with specific details including source OpenAPI URL and optional Git credentials for private source repositories.
 *   **API-Triggered Generation:** Documentation generation is initiated via a secure API call.
 *   **Authentication:** Project-specific operations are protected by Bearer token authentication.
-*   **Callback Mechanisms:**
-    *   **Push to Git Repository:** Automatically commit and push the generated OpenAPI spec to a specified Git repository.
-    *   **Custom API Endpoint:** Send the generated OpenAPI spec to a user-defined API endpoint.
-*   **Project Status Tracking:** Monitor the state of projects (`in` `pending`, `active`, `failed`).
+*   **Task-Based Generation:** All document generation processes are handled as asynchronous tasks. A `task_id` is returned for tracking.
+*   **Task Status Tracking:** API endpoint to check the status of generation tasks (pending, processing, success, failed) and view results or error messages.
+*   **Database Storage:** Generated OpenAPI specifications are stored in the database.
+*   **Direct OpenAPI Access:** API endpoint to retrieve the latest successfully generated OpenAPI JSON for a project.
+*   **Project Status Tracking:** Monitor the overall state of projects (`init`, `pending`, `active`, `failed`). Generation progress is tracked via tasks.
 *   **(Placeholder) OpenAPI Spec Diffing:** Identifies changes between the current source spec and the previously generated one to enable targeted processing.
 *   **(Placeholder) Targeted Description Completion:** Future capability to use LLMs to enrich descriptions for new or modified parts of the API specification.
 
 ## API Endpoints
 
-The base URL for all API endpoints is `/v1/api-doc`.
+The base URL for all API endpoints is assumed to be `/v1/api-doc` (this might vary based on deployment).
 
 ### Authentication
 
 Most project-specific endpoints (PUT, DELETE for projects, and triggering generation) require a Bearer Token to be included in the `Authorization` header:
-`Authorization: Bearer <your_project_token>`
+`Authorization: Bearer <your_project_token>`, expect for GET openapi-docs
 
 This token is defined by you when creating the project and is unique to that project.
 
 ### Projects Management (`/projects`)
 
 *   **`POST /projects`**
-    *   **Description:** Registers a new project for documentation generation.
-    *   **Request Header:** Authorization: `Bearer {apikey}`
+    *   **Description:** Registers a new project for documentation generation. An initial documentation generation task is automatically started.
+    *   **Request Header:** `Authorization: Bearer {apikey}` (where `{apikey}` is your chosen API key for creating projects, not to be confused with the project-specific bearer token generated upon creation).
     *   **Request Body:**
         *   `name` (string, required): Unique name for the project.
-        *   `source_openapi_url` (string, required): URL to fetch the source OpenAPI 3.0 JSON spec.
-        *   `callback_type` (string, required): How to dispatch the generated spec. Enum: `push_to_repo` or `custom_api`.
-        *   `git_repo_url` (string, optional): URL of the Git repository (required if `callback_type` is `push_to_repo`).
-        *   `git_auth_token` (string, optional): Authentication token for the Git repository (e.g., GitHub PAT).
-        *   `custom_callback_url` (string, optional): URL for the custom API callback (required if `callback_type` is `custom_api`).
-        *   `custom_callback_token` (string, optional): Authentication token for the custom API.
-    *   **Response:** Details of the created project, including its ID and initial `pending` status. An initial documentation generation process is triggered asynchronously in the background.
-
-#### Request Body Examples
-
-**Example 1: Project with "Push to Repo" Callback**
-
-```json
-{
-  "name": "My Awesome API Project",
-  "source_openapi_url": "https://api.example.com/v1/openapi.json",
-  "callback_type": "push_to_repo",
-  "git_repo_url": "https://github.com/your_username/my-awesome-api-docs.git",
-  "git_auth_token": "your_github_pat_if_needed_for_private_repo"
-}
-```
-
-**Example 2: Project with "Custom API" Callback**
-
-```json
-{
-  "name": "My Other Service Docs",
-  "source_openapi_url": "https://my.service.com/api/swagger.json",
-  "callback_type": "custom_api",
-  "custom_callback_url": "https://my.webhook-receiver.com/api/receive-openapi",
-  "custom_callback_token": "optional_token_for_my_webhook_receiver"
-}
-```
-
-**Field Descriptions (briefly):**
-
-*   `name`: Unique project name.
-*   `source_openapi_url`: URL for Bella to fetch your latest OpenAPI spec.
-*   `callback_type`: `push_to_repo` or `custom_api`.
-*   `git_repo_url`: Required if `callback_type` is `push_to_repo`.
-*   `git_auth_token`: Optional, for Bella to auth with your Git repo.
-*   `custom_callback_url`: Required if `callback_type` is `custom_api`.
-*   `custom_callback_token`: Optional, for Bella to auth with your custom callback API.
-
+        *   `source_openapi_url` (string, required): URL to fetch the source OpenAPI 3.0 JSON spec. This can be a public URL or a URL to a file in a Git repository.
+        *   `git_repo_url` (string, required): This is the URL of that Git repository which is used for pull code.
+        *   `git_auth_token` (string, optional): Authentication token (e.g., GitHub PAT) if the `git_repo_url` is private.
+    *   **Response (Success: 201 Created):** Details of the created project and a `task_id` for the initial documentation generation.
+        ```json
+        {
+          "project": {
+            "id": 1,
+            "name": "My Awesome API Project",
+            "source_openapi_url": "https://api.example.com/v1/openapi.json",
+            "git_repo_url": "https://git.example.com/my/repo.git",
+            "created_at": "2025-05-28T12:00:00Z",
+            "updated_at": "2025-05-28T12:00:00Z"
+          },
+          "task_id": "xyz123abc"
+        }
+        ```
+    *   **Request Body Example:**
+        ```json
+        {
+          "name": "My Awesome API Project",
+          "source_openapi_url": "https://api.example.com/v1/openapi.json"
+        }
+        ```
+    *   **Request Body Example (Source from Private Git):**
+        ```json
+        {
+          "name": "Project From Private Git",
+          "source_openapi_url": "path/to/openapi.json", // Relative path within the cloned repo
+          "git_repo_url": "https://github.com/your_username/my-private-spec-repo.git",
+          "git_auth_token": "your_github_pat"
+        }
+        ```
 
 *   **`GET /projects`**
     *   **Description:** Lists all registered projects. (Note: This endpoint might be restricted or require admin privileges in a production environment).
@@ -87,48 +77,109 @@ This token is defined by you when creating the project and is unique to that pro
 
 *   **`PUT /projects/{project_id}`**
     *   **Description:** Updates an existing project's configuration. Requires Bearer token authentication for this project.
-    *   **Request Body:** Similar to project creation, but all fields are optional. Can also include `bearer_token` to update the project's API token.
+    *   **Request Body:** Similar to project creation (name, source_openapi_url, git_repo_url, git_auth_token), all fields optional. Can also include `bearer_token` to update the project's API token.
     *   **Response:** The updated project details.
 
 *   **`DELETE /projects/{project_id}`**
     *   **Description:** Deletes a registered project. Requires Bearer token authentication for this project.
     *   **Response:** The details of the deleted project.
 
-### Documentation Generation (`/gen`)
+### Manual Documentation Generation (`/gen`)
 
 *   **`POST /gen/{project_id}`**
     *   **Description:** Triggers the documentation generation and processing workflow for a specific project. Requires Bearer token authentication for this project.
-    *   **Response:** `202 Accepted` if the generation process is successfully initiated. The process runs in the background.
+    *   **Response (Success: 202 Accepted):** A confirmation message and a `task_id` for tracking the generation process.
+        ```json
+        {
+          "message": "Documentation generation process initiated for project: ExampleProjectName",
+          "task_id": "abc789def"
+        }
+        ```
+
+### Task Management (`/tasks`)
+
+*   **`GET /tasks/{task_id}`**
+    *   **Description:** Retrieves the status and result of a specific documentation generation task.
+    *   **Response:** 
+        *   `id` (string): The Task ID.
+        *   `project_id` (integer): ID of the project this task belongs to.
+        *   `status` (string): Current status of the task (e.g., `pending`, `processing`, `success`, `failed`).
+        *   `created_at` (datetime): Task creation timestamp.
+        *   `updated_at` (datetime): Task last update timestamp.
+        *   `result` (string/json, optional): Contains a success message or structured error details upon task completion.
+        *   `error_message` (string, optional): Detailed error message if the task failed.
+    *   **Example Response (Success):**
+        ```json
+        {
+          "id": "xyz123abc",
+          "project_id": 1,
+          "status": "success",
+          "created_at": "2023-10-28T12:00:00Z",
+          "updated_at": "2023-10-28T12:05:00Z",
+          "result": "{"message": "OpenAPI documentation generated successfully."}",
+          "error_message": null
+        }
+        ```
+    *   **Example Response (Failure):**
+        ```json
+        {
+          "id": "abc789def",
+          "project_id": 2,
+          "status": "failed",
+          "created_at": "2023-10-28T11:00:00Z",
+          "updated_at": "2023-10-28T11:01:00Z",
+          "result": "{"error": "Failed to fetch OpenAPI spec from source."}",
+          "error_message": "HTTPError: 404 Client Error: Not Found for url: https://invalid.url/openapi.json"
+        }
+        ```
+
+### OpenAPI Document Retrieval (`/openapi`)
+
+*   **`GET /{project_id}`**
+    *   **Description:** Retrieves the latest successfully generated OpenAPI JSON document for the specified project.
+    *   **Response:** The OpenAPI JSON document.
+    *   **Example Response:**
+        ```json
+        {
+          "openapi": "3.0.0",
+          "info": {
+            "title": "Sample API",
+            "version": "1.0.0"
+          },
+          "paths": {
+            "/items": {
+              "get": {
+                "summary": "List all items"
+              }
+            }
+          }
+        }
+        ```
 
 ## Project Configuration Fields
 
 *   `name`: (string, required) Unique name for the project.
 *   `bearer_token`: (string, required on create/update) The secret token you define for authenticating API requests related to this project. This token is hashed and stored by Bella.
-*   `source_openapi_url`: (string, required) URL from which Bella will fetch the source OpenAPI 3.0 JSON specification.
-*   `callback_type`: (enum, required) Method for dispatching the processed OpenAPI specification.
-    *   `push_to_repo`: Bella will commit and push the spec to a Git repository.
-    *   `custom_api`: Bella will send the spec via a POST request to a custom API endpoint.
-*   `git_repo_url`: (string, optional) URL of the Git repository. Required if `callback_type` is `push_to_repo`.
-*   `git_auth_token`: (string, optional) Token for Bella to authenticate with the Git repository (e.g., a GitHub Personal Access Token).
-*   `custom_callback_url`: (string, optional) URL for your custom API. Required if `callback_type` is `custom_api`. Bella will `POST` the generated spec to this URL. Bella may also attempt a `GET` request to this URL to fetch the previously generated spec for diffing purposes.
-*   `custom_callback_token`: (string, optional) Token for Bella to use when authenticating with your `custom_callback_url`.
+*   `source_openapi_url`: (string, required) URL from which Bella will fetch the source OpenAPI 3.0 JSON specification. Can be a public URL or a path within a Git repository if `git_repo_url` is also provided.
+*   `git_repo_url`: (string, optional) URL of the Git repository. Required if `source_openapi_url` points to a resource within a private Git repository that needs to be cloned.
+*   `git_auth_token`: (string, optional) Token for Bella to authenticate with the Git repository (e.g., a GitHub Personal Access Token) if it's private.
 
 ## Workflow Overview
 
-1.  **Register Project:** Use `POST /projects` to register your API project. Provide its configuration details, including where to find the source OpenAPI spec (`source_openapi_url`), how you want the processed spec delivered (`callback_type` and related details), and a unique `bearer_token` for securing your project's API interactions with Bella.
-2.  **Initial Generation:** Upon successful registration, Bella automatically triggers an initial documentation generation process in the background.
-3.  **Manual Trigger:** To update the documentation later, make a `POST` request to `/v1/api-doc/gen-api-doc/{project_id}`, authenticating with your project's `bearer_token`.
-4.  **Fetch Source Spec:** Bella fetches the latest OpenAPI spec from the `source_openapi_url` you provided.
-5.  **Fetch Previous Spec:** Bella attempts to retrieve the previously generated/stored version of the spec.
-    *   If `callback_type` is `push_to_repo`, it looks in the configured Git repository.
-    *   If `callback_type` is `custom_api`, it may attempt a `GET` request to your `custom_callback_url`.
-6.  **Process Spec (Conceptual):**
+1.  **Register Project:** Use `POST /projects` to register your API project. Provide its `name` and `source_openapi_url`. If the source spec is in a private Git repository, also provide `git_repo_url` and `git_auth_token`. Define a `bearer_token` for securing your project's API interactions with Bella.
+2.  **Initial Generation Task:** Upon successful registration, Bella automatically triggers an initial documentation generation task. A `task_id` is returned in the response.
+3.  **Track Task Status:** Use `GET /tasks/{task_id}` with the received `task_id` to monitor the generation progress (states: `pending` -> `processing` -> `success` or `failed`). The `result` and `error_message` fields provide details on completion.
+4.  **Manual Trigger:** To update the documentation later, make a `POST` request to `/gen/{project_id}`, authenticating with your project's `bearer_token`. This also returns a `task_id`.
+5.  **Fetch Source Spec:** Bella fetches the latest OpenAPI spec from the `source_openapi_url` (using Git credentials if provided for a private repo).
+6.  **Fetch Previous Spec (for diffing):** Bella retrieves the last successfully generated OpenAPI specification for this project from its internal database.
+7.  **Process Spec (Conceptual):**
     *   Bella (conceptually) calculates the differences between the new source spec and the previous one.
     *   (Future) For new or modified parts, it can apply description completion using an LLM.
     *   (Future) The changes are then merged into a new version of the specification.
-    *   (Currently) The fetched source spec is processed as a whole by the placeholder description completion and then sent to the callback.
-7.  **Dispatch via Callback:** The newly processed OpenAPI specification is dispatched using your configured `callback_type` (e.g., pushed to your Git repo or sent to your custom API).
-8.  **Status Update:** The project's status (`init`, `pending`, `active`, `failed`) is updated to reflect the outcome of the generation process.
+    *   (Currently) The fetched source spec is processed as a whole by the placeholder description completion.
+8.  **Store Generated Spec:** The newly processed OpenAPI specification is saved to Bella's database, associated with the project and the completed task.
+9.  **Retrieve Generated Spec:** Once the task status is `success`, you can access the latest generated OpenAPI document via `GET /openapi/projects/{project_id}/openapi-json`.
+10. **Status Updates:** The project's main status (`active`, `failed`) reflects its overall health regarding documentation. Task statuses provide details on individual generation attempts.
 
 ## Setup & Running (Basic - Conceptual)
 
@@ -137,7 +188,7 @@ This outlines a basic setup for development or testing. Production deployment wo
 1.  **Clone the Repository:**
     ```bash
     git clone <repository_url>
-    cd bella-api-doc-gen
+    cd bella-api-doc-gen # Or your project directory name
     ```
 2.  **Install Dependencies:**
     ```bash

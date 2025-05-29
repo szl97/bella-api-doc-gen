@@ -1,33 +1,26 @@
-from typing import Optional
 from datetime import datetime
+from typing import Optional
+
 from pydantic import BaseModel, Field
 
-# Enums are now defined in models.project.py, import them from there.
-from ..models.project import ProjectStatusEnum, CallbackTypeEnum
+from ..models.project import ProjectStatusEnum
+
 
 class ProjectBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     source_openapi_url: str = Field(..., max_length=512, description="URL from which Bella fetches the source OpenAPI spec.")
-    callback_type: CallbackTypeEnum # Default is set in the model
     
-    # Optional fields for callbacks
-    git_repo_url: Optional[str] = Field(None, max_length=512, description="URL of the user's Git repository (for 'push_to_repo' callback).")
+    # Optional fields for git repo
+    git_repo_url: str = Field(..., max_length=512, description="URL of the user's Git repository.")
     git_auth_token: Optional[str] = Field(None, max_length=512, description="Token for Bella to access the Git repository. Not returned in API responses.")
-    
-    custom_callback_url: Optional[str] = Field(None, max_length=512, description="URL for Bella to POST to if callback_type is 'custom_api'.")
-    custom_callback_token: Optional[str] = Field(None, max_length=512, description="Token for Bella to auth with the custom_callback_url. Not returned in API responses.")
 
 
 class ProjectUpdate(BaseModel): # Using BaseModel for full flexibility, all fields optional
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     source_openapi_url: Optional[str] = Field(None, max_length=512)
-    callback_type: Optional[CallbackTypeEnum] = None
     
     git_repo_url: Optional[str] = Field(None, max_length=512)
     git_auth_token: Optional[str] = Field(None, max_length=512, description="Token for Bella to access the Git repository.")
-    
-    custom_callback_url: Optional[str] = Field(None, max_length=512)
-    custom_callback_token: Optional[str] = Field(None, max_length=512, description="Token for Bella to auth with the custom_callback_url.")
     
     status: Optional[ProjectStatusEnum] = Field(None, description="Project status (e.g., active, failed). Typically system-driven.")
     bearer_token: Optional[str] = Field(None, min_length=10, description="New Bearer token for API authentication for this project. If provided, will be hashed and updated.")
@@ -37,9 +30,7 @@ class ProjectResponse(BaseModel): # API response model
     name: str
     status: ProjectStatusEnum
     source_openapi_url: str
-    callback_type: CallbackTypeEnum
-    git_repo_url: Optional[str] # Only relevant if callback_type is 'push_to_repo'
-    custom_callback_url: Optional[str] # Only relevant if callback_type is 'custom_api'
+    git_repo_url: Optional[str]
     created_at: datetime
     updated_at: datetime
 
@@ -68,5 +59,12 @@ __all__ = [
     "Project",         # General Project schema (includes potentially sensitive inherited fields if not careful)
     "ProjectResponse", # Cleaned response schema
     "ProjectStatusEnum",
-    "CallbackTypeEnum",
 ]
+
+# In app/schemas/project.py, add this:
+class ProjectCreationResponse(ProjectResponse): # Inherits fields from ProjectResponse
+    task_id: int
+    message: str
+
+# Ensure ProjectCreationResponse is added to __all__ if applicable.
+__all__.append("ProjectCreationResponse")
