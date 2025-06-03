@@ -12,14 +12,10 @@ router = APIRouter()
 @router.get("/{task_id}", response_model=TaskResponse)
 def read_task_status(
     task_id: int,
-    db: Session = Depends(get_db),
-    current_project: project_model.Project = Depends(get_current_project)
+    db: Session = Depends(get_db)
 ):
     db_task = crud_task.get_task(db, task_id=task_id)
     if db_task is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
-
-    if db_task.project_id != current_project.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view this task")
     
     return db_task

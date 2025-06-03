@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Any
 
 from pydantic import BaseModel
 
@@ -19,7 +19,7 @@ class TaskResponse(TaskBase):
     status: TaskStatusEnum
     created_at: datetime
     updated_at: datetime
-    result: Optional[Dict[str, Any]] = None # Assuming result might be JSON
+    result: Optional[Any] = None
     error_message: Optional[str] = None
 
     class Config:

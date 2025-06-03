@@ -10,24 +10,22 @@ from ..crud import crud_project, crud_task, crud_openapi_doc
 from ..crud.crud_project import ProjectLockedError  # Import ProjectLockedError
 from ..models.project import ProjectStatusEnum, Project as ProjectModel
 from ..models.task import TaskStatusEnum
+from .des_completion_service import generate_descriptions
 
 logger = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT_SECONDS = 20
 
-async def fetch_openapi_spec(openapi_api_url: str, api_key: Optional[str] = None) -> Optional[Dict]: # Added api_key parameter
+async def fetch_openapi_spec(openapi_api_url: str) -> Optional[Dict]: # Added api_key parameter
     """
     Fetches the OpenAPI specification from the given URL.
     Returns the parsed JSON content as a dictionary, or None if an error occurs.
     """
     logger.info(f"Attempting to fetch OpenAPI spec from: {openapi_api_url}")
-    headers = {}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}" # Assuming Bearer token auth if API key is provided
 
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(openapi_api_url, timeout=REQUEST_TIMEOUT_SECONDS, headers=headers)
+            response = await client.get(openapi_api_url, timeout=REQUEST_TIMEOUT_SECONDS)
 
         if response.status_code == 200:
             try:
@@ -154,7 +152,7 @@ async def initiate_doc_generation_process(project_id: int, task_id: int, apikey:
             logger.info(f"Project {project.name} status updated to 'pending'.")
 
             # Fetch User's Source Spec (potentially using the project's API key if the URL is protected)
-            openapi_spec_source = await fetch_openapi_spec(project.source_openapi_url, api_key=apikey) # Pass apikey
+            openapi_spec_source = await fetch_openapi_spec(project.source_openapi_url)
             if openapi_spec_source is None:
                 error_msg = f"Failed to fetch source OpenAPI spec for project '{project.name}' from {project.source_openapi_url}."
                 logger.error(error_msg)
@@ -189,10 +187,12 @@ async def initiate_doc_generation_process(project_id: int, task_id: int, apikey:
                 "modified_schemas_new_keys": list(spec_diff_report["modified_components_schemas"].keys()) 
             }
             logger.info(f"Task {task_id}: Conceptual LLM input summary (keys): {llm_input_summary}")
-            
-            processed_elements_spec = await description_completion_demo(openapi_spec_source) 
-            newly_generated_spec = processed_elements_spec 
-            logger.info(f"Task {task_id}: Targeted description completion (demo) finished.")
+
+            # Targeted Description Completion
+            logger.info(f"Task {task_id}: Initiating targeted description completion...")
+            # spec_diff_report is available from previous steps
+            newly_generated_spec = await generate_descriptions(openapi_spec_source=openapi_spec_source, spec_diff_report=spec_diff_report, repo_id=project.name, language=project.language, apikey=apikey)
+            logger.info(f"Task {task_id}: Targeted description completion finished.")
 
             # Merge Changes (Placeholder)
             logger.info(f"Task {task_id}: Merging changes (placeholder)...")
@@ -228,20 +228,3 @@ async def initiate_doc_generation_process(project_id: int, task_id: int, apikey:
                 except Exception as db_error: # If updating status itself fails
                     logger.error(f"Failed to update task/project status to failed after unexpected error. DB Error: {db_error}", exc_info=True)
             return # Exit function
-
-async def description_completion_demo(openapi_spec: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    (Demo) Processes an OpenAPI specification to add or enhance descriptions.
-    Currently, this is a placeholder and returns the spec unchanged.
-    """
-    logger.info("Performing description completion (demo)...")
-    # TODO: Replace with actual LLM-based description completion logic.
-    # This function would iterate through the spec, find fields needing descriptions
-    # (e.g., operations, parameters, schemas) and use an LLM to generate them.
-    # For demonstration, let's assume it adds a mock description to the info object if not present.
-    if "info" in openapi_spec and "description" not in openapi_spec["info"]:
-        openapi_spec["info"]["description"] = "This is a demo description added by Bella."
-        logger.info("Added demo description to spec info.")
-    
-    logger.info("Description completion (demo) complete.")
-    return openapi_spec

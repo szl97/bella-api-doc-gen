@@ -12,8 +12,8 @@ Bella API Doc Gen is an API service designed to automatically generate and updat
 *   **Database Storage:** Generated OpenAPI specifications are stored in the database.
 *   **Direct OpenAPI Access:** API endpoint to retrieve the latest successfully generated OpenAPI JSON for a project.
 *   **Project Status Tracking:** Monitor the overall state of projects (`init`, `pending`, `active`, `failed`). Generation progress is tracked via tasks.
-*   **(Placeholder) OpenAPI Spec Diffing:** Identifies changes between the current source spec and the previously generated one to enable targeted processing.
-*   **(Placeholder) Targeted Description Completion:** Future capability to use LLMs to enrich descriptions for new or modified parts of the API specification.
+*   **OpenAPI Spec Diffing:** Identifies changes between the current source spec and the previously generated one to enable targeted processing.
+*   **Targeted Description Completion:** Supported by [Code-Aware-RAG](https://github.com/szl97/Code-Aware-RAG)
 
 ## API Endpoints
 

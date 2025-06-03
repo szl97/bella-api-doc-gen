@@ -3,11 +3,10 @@ from sqlalchemy.orm import Session
 
 from ...core.database import get_db
 from ...crud import crud_openapi_doc
-from ...schemas.openapi_doc import OpenAPIDocResponse
 
 router = APIRouter()
 
-@router.get("/{project_id}", response_model=OpenAPIDocResponse)
+@router.get("/{project_id}")
 def read_latest_openapi_document(
     project_id: int,
     db: Session = Depends(get_db)
@@ -17,4 +16,4 @@ def read_latest_openapi_document(
     if latest_doc is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No OpenAPI document found for this project.")
     
-    return latest_doc
+    return latest_doc.openapi_spec
