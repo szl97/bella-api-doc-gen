@@ -76,7 +76,6 @@ def create_project(db: Session, project: ProjectBase, apikey: str) -> Project:
         )
 
     # TODO: Encrypt token before saving (for git_auth_token) - This is for Bella's access to user's repo
-    # TODO: Encrypt token before saving (for custom_api_token) - This is for Bella's callback to user's custom API
 
     from ..core.security import hash_token
     
@@ -87,6 +86,7 @@ def create_project(db: Session, project: ProjectBase, apikey: str) -> Project:
     db_project = Project(
         name=project.name,
         token_hash=hashed_bearer_token,
+        language=project.language,
         source_openapi_url=project.source_openapi_url,
         git_repo_url=project.git_repo_url,
         git_auth_token=project.git_auth_token, # TODO: Encrypt token before saving
@@ -115,8 +115,7 @@ def update_project(db: Session, project_id: int, project_update: ProjectUpdate) 
         elif field_name == "git_auth_token" and value is not None:
             # TODO: Encrypt token if updated (for git_auth_token)
             setattr(db_project, field_name, value)
-        # Removed handling for custom_callback_token and callback_type
-        elif field_name not in ["callback_type", "custom_callback_url", "custom_callback_token"]: # Ensure removed fields are not set
+        else:
             setattr(db_project, field_name, value)
 
     db.add(db_project)

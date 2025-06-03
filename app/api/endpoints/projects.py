@@ -37,6 +37,7 @@ def create_project_endpoint(
     response_data = {
         "id": created_project.id,
         "name": created_project.name,
+        "language": created_project.language,
         "status": created_project.status,
         "source_openapi_url": created_project.source_openapi_url,
         "git_repo_url": created_project.git_repo_url,

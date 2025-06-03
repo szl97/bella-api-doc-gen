@@ -17,7 +17,9 @@ class Project(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     name = Column(String(255), nullable=False, unique=True, index=True)
-    
+
+    language = Column(String(32), nullable=False, index=False)
+
     token_hash = Column(String(128), nullable=False, index=True)
     source_openapi_url = Column(String(512), nullable=False)
 

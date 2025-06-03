@@ -9,7 +9,7 @@ from ..models.project import ProjectStatusEnum
 class ProjectBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     source_openapi_url: str = Field(..., max_length=512, description="URL from which Bella fetches the source OpenAPI spec.")
-    
+    language: str = Field(..., max_length=32, description="Coding language of the api project")
     # Optional fields for git repo
     git_repo_url: str = Field(..., max_length=512, description="URL of the user's Git repository.")
     git_auth_token: Optional[str] = Field(None, max_length=512, description="Token for Bella to access the Git repository. Not returned in API responses.")
@@ -17,6 +17,7 @@ class ProjectBase(BaseModel):
 
 class ProjectUpdate(BaseModel): # Using BaseModel for full flexibility, all fields optional
     name: Optional[str] = Field(None, min_length=1, max_length=255)
+    language: Optional[str] = Field(None, min_length=1, max_length=32)
     source_openapi_url: Optional[str] = Field(None, max_length=512)
     
     git_repo_url: Optional[str] = Field(None, max_length=512)
@@ -28,6 +29,7 @@ class ProjectUpdate(BaseModel): # Using BaseModel for full flexibility, all fiel
 class ProjectResponse(BaseModel): # API response model
     id: int
     name: str
+    language: str
     status: ProjectStatusEnum
     source_openapi_url: str
     git_repo_url: Optional[str]
