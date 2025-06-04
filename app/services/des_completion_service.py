@@ -242,7 +242,7 @@ async def call_code_rag_service(partial_openapi_spec: Dict[str, Any], repo_id: s
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                settings.CODE_RAG_SERVICE_URL,
+                settings.CODE_RAG_SERVICE_HOST + "query/stream",
                 json=payload,
                 headers=headers,
                 timeout=60.0

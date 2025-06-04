@@ -15,12 +15,11 @@ class Settings(BaseSettings):
     GIT_REPOS_BASE_PATH: str = Field("data/repos", env="GIT_REPOS_BASE_PATH")
 
     # Code RAG service settings
-    CODE_RAG_SERVICE_URL: str = Field("http://localhost:8002/v1/code-rag/query/stream", env="CODE_RAG_SERVICE_URL")
+    CODE_RAG_SERVICE_URL: str = Field("http://localhost:8002/v1/code-rag/", env="CODE_RAG_SERVICE_URL")
 
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",
-        # "extra": "ignore" # if you want to ignore extra fields from .env
     }
 
 settings = Settings()
