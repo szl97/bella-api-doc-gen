@@ -11,6 +11,7 @@ from ..crud.crud_project import ProjectLockedError  # Import ProjectLockedError
 from ..models.project import ProjectStatusEnum, Project as ProjectModel
 from ..models.task import TaskStatusEnum
 from .des_completion_service import generate_descriptions
+from .code_rag_service import setup_code_rag_repository # Added import
 
 logger = logging.getLogger(__name__)
 
@@ -187,6 +188,26 @@ async def initiate_doc_generation_process(project_id: int, task_id: int, apikey:
                 "modified_schemas_new_keys": list(spec_diff_report["modified_components_schemas"].keys()) 
             }
             logger.info(f"Task {task_id}: Conceptual LLM input summary (keys): {llm_input_summary}")
+
+            # Call Code-RAG Service to setup repository
+            logger.info(f"Task {task_id}: Initiating Code-RAG repository setup for project '{project.name}'.")
+            code_rag_setup_successful = await setup_code_rag_repository(
+                project_name=project.name,
+                git_repo_url=project.git_repo_url,
+                git_auth_token=project.git_auth_token,
+                apikey=apikey # This is the project's bearer token passed to initiate_doc_generation_process
+            )
+
+            if not code_rag_setup_successful:
+                error_msg = f"Task {task_id}: Code-RAG repository setup failed for project '{project.name}'. See previous logs for details."
+                logger.error(error_msg)
+                # Update task and project status to failed
+                crud_task.update_task_status(db, task_id=task_id, status=TaskStatusEnum.failed,
+                                             error_message=error_msg, result=json.dumps({"error": "Code-RAG setup failed."}))
+                crud_project.update_project_status(db, project_id=project.id, status=ProjectStatusEnum.failed)
+                return # Exit the generation process
+
+            logger.info(f"Task {task_id}: Code-RAG repository setup successful for project '{project.name}'.")
 
             # Targeted Description Completion
             logger.info(f"Task {task_id}: Initiating targeted description completion...")

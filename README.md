@@ -15,6 +15,14 @@ Bella API Doc Gen is an API service designed to automatically generate and updat
 *   **OpenAPI Spec Diffing:** Identifies changes between the current source spec and the previously generated one to enable targeted processing.
 *   **Targeted Description Completion:** Supported by [Code-Aware-RAG](https://github.com/szl97/Code-Aware-RAG)
 
+## Dependencies
+
+Bella API Doc Gen Service relies on the following external services:
+
+*   **Code-Aware-RAG:** This service is a prerequisite for the targeted description completion feature.
+    *   **Project Link:** [Code-Aware-RAG](https://github.com/szl97/Code-Aware-RAG)
+    *   **Instruction:** Ensure the Code-Aware-RAG service is running before starting Bella API Doc Gen Service, if you intend to use the description completion capabilities.
+
 ## API Endpoints
 
 The base URL for all API endpoints is assumed to be `/v1/api-doc` (this might vary based on deployment).
