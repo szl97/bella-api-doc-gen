@@ -208,6 +208,11 @@ This outlines a basic setup for development or testing. Production deployment wo
     uvicorn app.main:app --reload
     ```
     The API will typically be available at `http://127.0.0.1:8000`.
+6. **Start with docker:**
+    ```bash
+    docker build -t bella-api-doc-gen .
+    docker run -d -p 8000:8000 --name bella-api-doc-gen bella-api-doc-gen
+    ```
 
 ### Database Configuration
 

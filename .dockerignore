@@ -1,0 +1,24 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*~
+
+# Docker
+Dockerfile
+.dockerignore
+
+# OS generated files
+.DS_Store
+Thumbs.db
