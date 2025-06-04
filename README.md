@@ -1,5 +1,7 @@
 # Bella API Doc Gen Service
 
+English | [中文](./README_CN.md)
+
 Bella API Doc Gen is an API service designed to automatically generate and update OpenAPI 3.0 documentation. It works by fetching a source OpenAPI specification, processing it, and storing the result in a database. Users can track the generation process via a task ID and retrieve the generated OpenAPI JSON through a dedicated API endpoint.
 
 ## Features
