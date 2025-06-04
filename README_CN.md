@@ -24,6 +24,7 @@ Bella API 文档生成服务依赖以下外部服务：
 * **Code-Aware-RAG：** 此服务是目标描述补全功能的先决条件。
     * **项目链接：** [Code-Aware-RAG](https://github.com/szl97/Code-Aware-RAG)
     * **说明：** 如果您打算使用描述补全功能，请确保在启动 Bella API 文档生成服务之前运行 Code-Aware-RAG 服务。
+    * **注意：** 如果 Code-Aware-RAG 服务中不存在代码索引，会先创建代码索引。如果存在索引，不会进行强制更新。需要用户自行判断何时进行索引更新，更新方式为调用 Code-Aware-RAG 服务的 `/v1/code-rag/repository/setup` 接口，指定 `force_reindex` 为 `true`，详情见项目链接。
 
 ## API 端点
 

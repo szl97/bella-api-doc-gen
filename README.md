@@ -24,6 +24,7 @@ Bella API Doc Gen Service relies on the following external services:
 *   **Code-Aware-RAG:** This service is a prerequisite for the targeted description completion feature.
     *   **Project Link:** [Code-Aware-RAG](https://github.com/szl97/Code-Aware-RAG)
     *   **Instruction:** Ensure the Code-Aware-RAG service is running before starting Bella API Doc Gen Service, if you intend to use the description completion capabilities.
+    *   **Note:** If there is no code index in the Code Aware RAG service, a code index will be created first. If there is an index, no forced update will be performed. Users need to determine when to update the index themselves. The update method is to call the `/v1/code rag/repository/setup` interface of the Code Aware RAG service and specify `force_deindex` as `true`. For details, please refer to the project link.
 
 ## API Endpoints
 
