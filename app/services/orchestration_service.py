@@ -1,23 +1,107 @@
 import json
 import logging
-from typing import Optional, Dict, Any  # Added Any
-
-import httpx  # For making HTTP requests
-from sqlalchemy.exc import OperationalError  # Added for the new try-except block
+from typing import Optional, Dict, Any
+import httpx
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import Session
 
 from ..core.database import get_session_scope
 from ..crud import crud_project, crud_task, crud_openapi_doc
-from ..crud.crud_project import ProjectLockedError  # Import ProjectLockedError
+from ..crud.crud_project import ProjectLockedError
 from ..models.project import ProjectStatusEnum, Project as ProjectModel
 from ..models.task import TaskStatusEnum
 from .des_completion_service import generate_descriptions
-from .code_rag_service import setup_code_rag_repository # Added import
+from .code_rag_service import setup_code_rag_repository
+from .diff_service import calculate_spec_diff
+import copy
 
 logger = logging.getLogger(__name__)
 
+def merge_descriptions(previous_spec: Dict[str, Any], current_spec: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    将previous_spec中的description字段合并到current_spec中
+    保留结构变化，但保持原有的描述
+    """
+    if not previous_spec:
+        return current_spec
+        
+    result = copy.deepcopy(current_spec)
+    
+    # 合并paths中的description
+    if 'paths' in previous_spec and 'paths' in result:
+        for path_key, prev_path_item in previous_spec['paths'].items():
+            if path_key in result['paths']:
+                # 对于每个HTTP方法
+                for method, prev_operation in prev_path_item.items():
+                    if method in result['paths'][path_key]:
+                        # 如果之前有description但现在没有，则添加
+                        if 'description' in prev_operation and 'description' not in result['paths'][path_key][method]:
+                            result['paths'][path_key][method]['description'] = prev_operation['description']
+                        
+                        # 处理参数的description
+                        if 'parameters' in prev_operation and 'parameters' in result['paths'][path_key][method]:
+                            for i, param in enumerate(result['paths'][path_key][method]['parameters']):
+                                param_name = param.get('name')
+                                if param_name:
+                                    # 查找之前同名的参数
+                                    for prev_param in prev_operation['parameters']:
+                                        if prev_param.get('name') == param_name and 'description' in prev_param:
+                                            # 合并description
+                                            if 'description' not in param:
+                                                param['description'] = prev_param['description']
+                        
+                        # 合并requestBody中的description
+                        if 'requestBody' in prev_operation and 'requestBody' in result['paths'][path_key][method]:
+                            # 顶层requestBody描述
+                            if 'description' in prev_operation['requestBody'] and 'description' not in result['paths'][path_key][method]['requestBody']:
+                                result['paths'][path_key][method]['requestBody']['description'] = prev_operation['requestBody']['description']
+                            
+                            # requestBody中的内容描述
+                            if 'content' in prev_operation['requestBody'] and 'content' in result['paths'][path_key][method]['requestBody']:
+                                for content_type, prev_content in prev_operation['requestBody']['content'].items():
+                                    if content_type in result['paths'][path_key][method]['requestBody']['content']:
+                                        if 'description' in prev_content and 'description' not in result['paths'][path_key][method]['requestBody']['content'][content_type]:
+                                            result['paths'][path_key][method]['requestBody']['content'][content_type]['description'] = prev_content['description']
+                        
+                        # 合并responses中的description
+                        if 'responses' in prev_operation and 'responses' in result['paths'][path_key][method]:
+                            for status_code, prev_response in prev_operation['responses'].items():
+                                if status_code in result['paths'][path_key][method]['responses']:
+                                    # 响应描述
+                                    if 'description' in prev_response and ('description' not in result['paths'][path_key][method]['responses'][status_code] 
+                                                                        or result['paths'][path_key][method]['responses'][status_code]['description'] == 'OK'):
+                                        result['paths'][path_key][method]['responses'][status_code]['description'] = prev_response['description']
+                                    
+                                    # 响应内容描述
+                                    if 'content' in prev_response and 'content' in result['paths'][path_key][method]['responses'][status_code]:
+                                        for content_type, prev_content in prev_response['content'].items():
+                                            if content_type in result['paths'][path_key][method]['responses'][status_code]['content']:
+                                                if 'description' in prev_content and 'description' not in result['paths'][path_key][method]['responses'][status_code]['content'][content_type]:
+                                                    result['paths'][path_key][method]['responses'][status_code]['content'][content_type]['description'] = prev_content['description']
+    
+    # 合并components/schemas中的description
+    if 'components' in previous_spec and 'schemas' in previous_spec['components']:
+        result.setdefault('components', {}).setdefault('schemas', {})
+        
+        for schema_name, prev_schema in previous_spec['components']['schemas'].items():
+            if schema_name in result['components']['schemas']:
+                # 合并schema级别的description
+                if 'description' in prev_schema and 'description' not in result['components']['schemas'][schema_name]:
+                    result['components']['schemas'][schema_name]['description'] = prev_schema['description']
+                
+                # 合并属性级别的description
+                if 'properties' in prev_schema and 'properties' in result['components']['schemas'][schema_name]:
+                    for prop_name, prev_prop in prev_schema['properties'].items():
+                        if prop_name in result['components']['schemas'][schema_name]['properties']:
+                            # 如果之前有description但现在没有，则添加
+                            if 'description' in prev_prop and 'description' not in result['components']['schemas'][schema_name]['properties'][prop_name]:
+                                result['components']['schemas'][schema_name]['properties'][prop_name]['description'] = prev_prop['description']
+    
+    return result
+
 REQUEST_TIMEOUT_SECONDS = 20
 
-async def fetch_openapi_spec(openapi_api_url: str) -> Optional[Dict]: # Added api_key parameter
+async def fetch_openapi_spec(openapi_api_url: str) -> Optional[Dict]:
     """
     Fetches the OpenAPI specification from the given URL.
     Returns the parsed JSON content as a dictionary, or None if an error occurs.
@@ -51,16 +135,6 @@ async def fetch_openapi_spec(openapi_api_url: str) -> Optional[Dict]: # Added ap
     except Exception as e:
         logger.error(f"An unexpected error occurred while fetching OpenAPI spec from {openapi_api_url}. Error: {e}")
         return None
-
-# Imports for get_previous_spec and the main orchestration logic
-# import git # No longer needed for get_previous_spec
-from sqlalchemy.orm import Session
-
-# from ..models.project import ProjectStatusEnum, Project as ProjectModel # Already imported
-# Removed callback_service import
-
-# Note: httpx, json, logging, Optional, Dict, get_session_scope, crud_project
-# are already imported at the top of the file.
 
 async def get_previous_spec(db: Session, project: ProjectModel) -> Optional[Dict[str, Any]]:
     """
@@ -168,10 +242,14 @@ async def initiate_doc_generation_process(project_id: int, task_id: int, apikey:
             if previous_spec is None:
                 logger.info(f"Task {task_id}: No previous spec found for project '{project.name}'. Assuming first run or unable to retrieve.")
             else:
-                logger.info(f"Task {task_id}: Successfully fetched previous spec for project '{project.name}'.")
+                logger.info(f"Task {task_id}: Successfully fetched previous spec for project '{project.name}'")
+                
+                # 在进行diff前，把previous_spec中的description合并到openapi_spec_source
+                logger.info(f"Task {task_id}: Merging descriptions from previous spec into source spec before calculating diff.")
+                openapi_spec_source = merge_descriptions(previous_spec, openapi_spec_source)
+                logger.info(f"Task {task_id}: Merged descriptions from previous spec into source spec.")
 
             # Perform Real Diff
-            from .diff_service import calculate_spec_diff # Import the new diff function
             spec_diff_report = calculate_spec_diff(previous_spec, openapi_spec_source)
             diff_summary = {k: len(v) if isinstance(v, (list, dict)) else v for k, v in spec_diff_report.items()} # Summarize counts
             logger.info(f"Task {task_id}: Spec diff report summary: {diff_summary}")

@@ -158,9 +158,6 @@ async def generate_descriptions(openapi_spec_source: Dict[str, Any], spec_diff_r
 
         logger.info(f"Calling code-rag service for a batch of {num_paths_in_batch} paths.")
 
-        # Assuming call_code_rag_service needs the repo_id, if it's part of your settings or a default.
-        # If repo_id needs to be dynamic, it should be passed into generate_descriptions.
-        # For now, using the default "bella-openapi" as in call_code_rag_service's definition.
         processed_chunk = await call_code_rag(partial_openapi_spec=partial_spec_input, repo_id=repo_id, language=language, apikey=apikey)
 
         if processed_chunk:
@@ -176,5 +173,6 @@ async def generate_descriptions(openapi_spec_source: Dict[str, Any], spec_diff_r
         else:
             logger.warning(f"Failed to process a batch of {num_paths_in_batch} paths. Descriptions for this batch will be missing.")
             logger.error(f"Failed Json is {partial_spec_input}")
+
 
     return updated_spec

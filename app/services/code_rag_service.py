@@ -33,13 +33,13 @@ async def setup_code_rag_repository(
         async with httpx.AsyncClient() as client:
             response = await client.post(setup_url, json=payload, headers=headers, timeout=1800) # Long timeout
 
-        if response.status_code in [200, 201]: # Check for successful status codes
-            logger.info(f"Successfully set up Code-Aware-RAG repository for project '{project_name}'. Status: {response.status_code}. Response: {response.text[:200]}")
-            return True
-        else:
-            error_detail = response.text[:500] # Limit error detail length
-            logger.error(f"Failed to set up Code-Aware-RAG repository for project '{project_name}'. Status: {response.status_code}. Response: {error_detail}")
-            return False
+            if response.status_code in [200, 201]: # Check for successful status codes
+                logger.info(f"Successfully set up Code-Aware-RAG repository for project '{project_name}'. Status: {response.status_code}. Response: {response.text[:200]}")
+                return True
+            else:
+                error_detail = response.text[:500] # Limit error detail length
+                logger.error(f"Failed to set up Code-Aware-RAG repository for project '{project_name}'. Status: {response.status_code}. Response: {error_detail}")
+                return False
 
     except httpx.TimeoutException:
         logger.error(f"Timeout occurred while calling Code-Aware-RAG setup for project '{project_name}' at {setup_url}", exc_info=True)
@@ -216,40 +216,40 @@ async def call_code_rag(partial_openapi_spec: Dict[str, Any], repo_id: str, lang
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                settings.CODE_RAG_SERVICE_HOST + "query/stream",
+                settings.CODE_RAG_SERVICE_URL + "/query/stream",
                 json=payload,
                 headers=headers,
-                timeout=60.0
+                timeout=300
             )
 
-        if response.status_code == 200:
-            try:
-                result = response.json()
-                logger.info(f"Successfully received response from Code RAG service for repo_id: {repo_id}")
-                return result
-            except json.JSONDecodeError:
-                # Clean response text from potential markdown formatting
-                response_text = response.text
-                # Remove markdown code blocks (```json and ```)
-                if "```json" in response_text:
-                    response_text = response_text.split("```json")[1].split("```")[0].strip()
-                elif "```" in response_text:
-                    # Handle case where language isn't specified in the markdown
-                    code_blocks = response_text.split("```")
-                    if len(code_blocks) >= 3:  # At least one complete code block
-                        response_text = code_blocks[1].strip()
-
-                # Try to parse the cleaned text as JSON
+            if response.status_code == 200:
                 try:
-                    result = json.loads(response_text)
+                    result = response.json()
                     logger.info(f"Successfully received response from Code RAG service for repo_id: {repo_id}")
                     return result
                 except json.JSONDecodeError:
-                    logger.error(f"Failed to decode JSON response from Code RAG service for repo_id: {repo_id}. Response text: {response.text}")
-                    return None
-        else:
-            logger.error(f"Error calling Code RAG service for repo_id: {repo_id}. Status: {response.status_code}, Response: {response.text}")
-            return None
+                    # Clean response text from potential markdown formatting
+                    response_text = response.text
+                    # Remove markdown code blocks (```json and ```)
+                    if "```json" in response_text:
+                        response_text = response_text.split("```json")[1].split("```")[0].strip()
+                    elif "```" in response_text:
+                        # Handle case where language isn't specified in the markdown
+                        code_blocks = response_text.split("```")
+                        if len(code_blocks) >= 3:  # At least one complete code block
+                            response_text = code_blocks[1].strip()
+
+                    # Try to parse the cleaned text as JSON
+                    try:
+                        result = json.loads(response_text)
+                        logger.info(f"Successfully received response from Code RAG service for repo_id: {repo_id}")
+                        return result
+                    except json.JSONDecodeError:
+                        logger.error(f"Failed to decode JSON response from Code RAG service for repo_id: {repo_id}. Response text: {response.text}")
+                        return None
+            else:
+                logger.error(f"Error calling Code RAG service for repo_id: {repo_id}. Status: {response.status_code}, Response: {response.text}")
+                return None
 
     except httpx.TimeoutException:
         logger.error(f"Request to Code RAG service timed out for repo_id: {repo_id}.")
