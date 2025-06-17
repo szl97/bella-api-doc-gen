@@ -31,7 +31,7 @@ async def setup_code_rag_repository(
 
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(setup_url, json=payload, headers=headers, timeout=300) # Long timeout
+            response = await client.post(setup_url, json=payload, headers=headers, timeout=1800) # Long timeout
 
         if response.status_code in [200, 201]: # Check for successful status codes
             logger.info(f"Successfully set up Code-Aware-RAG repository for project '{project_name}'. Status: {response.status_code}. Response: {response.text[:200]}")
