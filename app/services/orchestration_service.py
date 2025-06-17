@@ -11,7 +11,7 @@ from ..crud.crud_project import ProjectLockedError
 from ..models.project import ProjectStatusEnum, Project as ProjectModel
 from ..models.task import TaskStatusEnum
 from .des_completion_service import generate_descriptions
-from .code_rag_service import setup_code_rag_repository
+from .code_rag_service import setup_code_rag_repository_and_wait
 from .diff_service import calculate_spec_diff
 import copy
 
@@ -267,16 +267,19 @@ async def initiate_doc_generation_process(project_id: int, task_id: int, apikey:
             }
             logger.info(f"Task {task_id}: Conceptual LLM input summary (keys): {llm_input_summary}")
 
-            # Call Code-RAG Service to setup repository
-            logger.info(f"Task {task_id}: Initiating Code-RAG repository setup for project '{project.name}'.")
-            code_rag_setup_successful = await setup_code_rag_repository(
+            # Call Code-RAG Service to setup repository and wait for completion
+            logger.info(f"Task {task_id}: Initiating Code-RAG repository setup for project '{project.name}' and waiting for completion.")
+            code_rag_setup_result = await setup_code_rag_repository_and_wait(
                 project_name=project.name,
                 git_repo_url=project.git_repo_url,
                 git_auth_token=project.git_auth_token,
-                apikey=apikey # This is the project's bearer token passed to initiate_doc_generation_process
+                apikey=apikey, # This is the project's bearer token passed to initiate_doc_generation_process
+                max_wait_time=1800,  # 等待最多30分钟
+                polling_interval=10   # 每10秒检查一次
             )
 
-            if not code_rag_setup_successful:
+            # 检查是否发生错误或者状态不是completed
+            if code_rag_setup_result.get("status") != "completed":
                 error_msg = f"Task {task_id}: Code-RAG repository setup failed for project '{project.name}'. See previous logs for details."
                 logger.error(error_msg)
                 # Update task and project status to failed

@@ -1,6 +1,8 @@
 import httpx
 import logging
 import json
+import time
+import asyncio
 from typing import Optional, Dict, Any
 
 from app.core.config import settings
@@ -10,46 +12,207 @@ logger = logging.getLogger(__name__)
 async def setup_code_rag_repository(
     project_name: str,
     git_repo_url: str,
-    git_auth_token: Optional[str],
-    apikey: str  # This apikey is for authenticating with the Code-RAG service itself
-) -> bool:
+    git_auth_token: Optional[str] = None,
+    apikey: Optional[str] = None,
+    force_reclone: bool = False,
+    force_reindex: bool = False
+) -> Dict[str, Any]:
     """
-    Calls the Code-Aware-RAG service to set up or update a repository.
+    Calls the Code-RAG service to set up or index a repository.
+    Returns the task ID for the setup process which can be used to check status.
+    
+    Args:
+        project_name: The unique identifier for the repository
+        git_repo_url: The URL or path to the git repository
+        git_auth_token: Optional authentication token for private git repositories
+        apikey: API key for authenticating with the Code-RAG service (only needed in unconfigured apikey mode)
+        force_reclone: If True, force re-clone the repository even if it exists
+        force_reindex: If True, force re-index the repository even if already indexed
+    
+    Returns:
+        Dictionary containing task_id and status information
     """
-    logger.info(f"Attempting to set up Code-Aware-RAG repository for project: {project_name}")
+    logger.info(f"Attempting to set up Code-RAG repository for project: {project_name}")
 
     setup_url = f"{settings.CODE_RAG_SERVICE_URL}/repository/setup"
     payload = {
         "repo_id": project_name,  # Using project_name as repo_id
         "repo_url_or_path": git_repo_url,
-        "access_token": git_auth_token
+        "force_reclone": force_reclone,
+        "force_reindex": force_reindex
     }
+    
+    # Add git_auth_token to payload if provided
+    if git_auth_token:
+        payload["access_token"] = git_auth_token
+    
     headers = {
-        "Authorization": f"Bearer {apikey}", # API key for Code-RAG service
         "Content-Type": "application/json"
     }
+    
+    # Add Authorization header only if apikey is provided
+    if apikey:
+        headers["Authorization"] = f"Bearer {apikey}"
 
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(setup_url, json=payload, headers=headers, timeout=1800) # Long timeout
 
-            if response.status_code in [200, 201]: # Check for successful status codes
-                logger.info(f"Successfully set up Code-Aware-RAG repository for project '{project_name}'. Status: {response.status_code}. Response: {response.text[:200]}")
-                return True
+            if response.status_code in [200, 201, 202]: # Check for successful status codes including 202 Accepted
+                response_data = response.json()
+                logger.info(f"Successfully initiated Code-RAG repository setup for project '{project_name}'. Status: {response.status_code}.")
+                return response_data  # Return the task ID and other info from response
             else:
                 error_detail = response.text[:500] # Limit error detail length
-                logger.error(f"Failed to set up Code-Aware-RAG repository for project '{project_name}'. Status: {response.status_code}. Response: {error_detail}")
-                return False
+                logger.error(f"Failed to set up Code-RAG repository for project '{project_name}'. Status: {response.status_code}. Response: {error_detail}")
+                return {"error": f"Failed with status code: {response.status_code}", "details": error_detail}
 
     except httpx.TimeoutException:
-        logger.error(f"Timeout occurred while calling Code-Aware-RAG setup for project '{project_name}' at {setup_url}", exc_info=True)
-        return False
+        error_msg = f"Timeout occurred while calling Code-RAG setup for project '{project_name}' at {setup_url}"
+        logger.error(error_msg, exc_info=True)
+        return {"error": "Timeout", "details": error_msg}
     except httpx.RequestError as e:
-        logger.error(f"Error calling Code-Aware-RAG setup for project '{project_name}': {str(e)}", exc_info=True)
-        return False
+        error_msg = f"Error calling Code-RAG setup for project '{project_name}': {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        return {"error": "RequestError", "details": error_msg}
     except Exception as e: # Catch any other unexpected errors during the call
-        logger.error(f"Unexpected error during Code-Aware-RAG setup for project '{project_name}': {str(e)}", exc_info=True)
-        return False
+        error_msg = f"Unexpected error during Code-RAG setup for project '{project_name}': {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        return {"error": "UnexpectedError", "details": error_msg}
+
+
+async def check_code_rag_repository_status(
+    repo_id: str,
+    apikey: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Checks the status of a repository setup process.
+    
+    Args:
+        repo_id: The unique identifier of the repository
+        apikey: API key for authenticating with the Code-RAG service (only needed in unconfigured apikey mode)
+    
+    Returns:
+        Dictionary containing status information with fields like:
+        - repo_id: The repository identifier
+        - status: The status of the setup process (pending, completed, or failed)
+        - message: A human-readable message about the status
+        - index_status: Status of the indexing process
+        - repository_path: Path to the repository on the server
+    """
+    logger.info(f"Checking setup status of Code-RAG repository: {repo_id}")
+
+    status_url = f"{settings.CODE_RAG_SERVICE_URL}/repository/status/{repo_id}"
+    
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    # Add Authorization header only if apikey is provided
+    if apikey:
+        headers["Authorization"] = f"Bearer {apikey}"
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(status_url, headers=headers, timeout=60)
+
+            if response.status_code == 200:
+                status_data = response.json()
+                logger.info(f"Successfully retrieved status for Code-RAG repository '{repo_id}': {status_data.get('status')}")
+                return status_data
+            else:
+                error_detail = response.text[:500] # Limit error detail length
+                logger.error(f"Failed to check status of Code-RAG repository '{repo_id}'. Status: {response.status_code}. Response: {error_detail}")
+                return {"error": f"Failed with status code: {response.status_code}", "details": error_detail}
+
+    except httpx.TimeoutException:
+        error_msg = f"Timeout occurred while checking status of Code-RAG repository '{repo_id}'"
+        logger.error(error_msg, exc_info=True)
+        return {"error": "Timeout", "details": error_msg}
+    except httpx.RequestError as e:
+        error_msg = f"Error checking status of Code-RAG repository '{repo_id}': {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        return {"error": "RequestError", "details": error_msg}
+    except Exception as e:
+        error_msg = f"Unexpected error while checking status of Code-RAG repository '{repo_id}': {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        return {"error": "UnexpectedError", "details": error_msg}
+
+
+async def setup_code_rag_repository_and_wait(
+    project_name: str,
+    git_repo_url: str,
+    git_auth_token: Optional[str] = None,
+    apikey: Optional[str] = None,
+    force_reclone: bool = False,
+    force_reindex: bool = False,
+    max_wait_time: int = 1800,  # 默认最长等待30分钟
+    polling_interval: int = 10   # 默认每10秒检查一次状态
+) -> Dict[str, Any]:
+    """
+    设置代码仓库并等待其完成索引过程。
+    
+    Args:
+        project_name: 仓库的唯一标识符
+        git_repo_url: Git仓库的URL或路径
+        git_auth_token: Git仓库的访问令牌（私有仓库需要）
+        apikey: Code-RAG服务的API密钥
+        force_reclone: 是否强制重新克隆仓库
+        force_reindex: 是否强制重新索引仓库
+        max_wait_time: 最大等待时间（秒）
+        polling_interval: 轮询间隔（秒）
+        
+    Returns:
+        包含设置结果的字典，成功时status为completed，失败时会包含error字段
+    """
+    # 初始化设置流程
+    setup_result = await setup_code_rag_repository(
+        project_name=project_name,
+        git_repo_url=git_repo_url,
+        git_auth_token=git_auth_token,
+        apikey=apikey,
+        force_reclone=force_reclone,
+        force_reindex=force_reindex
+    )
+    
+    # 检查是否有错误
+    if "error" in setup_result:
+        logger.error(f"代码仓库设置启动失败: {setup_result.get('details', '未知错误')}")
+        return setup_result
+    
+    logger.info(f"代码仓库设置已启动，正在等待完成...")
+    
+    # 轮询检查状态直到完成或超时
+    start_time = time.time()
+    while time.time() - start_time < max_wait_time:
+        # 检查当前状态
+        status_result = await check_code_rag_repository_status(
+            repo_id=project_name,
+            apikey=apikey
+        )
+        
+        # 检查是否有错误
+        if "error" in status_result:
+            logger.error(f"检查代码仓库状态失败: {status_result.get('details', '未知错误')}")
+            return status_result
+        
+        current_status = status_result.get("status")
+        logger.info(f"代码仓库状态: {current_status}, 详情: {status_result.get('message', '无详情')}")
+        
+        # 如果状态为完成或失败，则返回结果
+        if current_status == "completed":
+            logger.info(f"代码仓库设置已完成！索引状态: {status_result.get('index_status', '未知')}")
+            return status_result
+        elif current_status == "failed":
+            logger.error(f"代码仓库设置失败: {status_result.get('message', '未知错误')}")
+            return status_result
+        
+        # 等待一段时间后再次检查
+        await asyncio.sleep(polling_interval)
+    
+    # 如果超时仍未完成
+    logger.warning(f"等待代码仓库设置完成超时 (已等待 {max_wait_time} 秒)")
+    return {"error": "Timeout", "details": f"代码仓库设置未能在 {max_wait_time} 秒内完成"}
 
 def _get_rewrite_prompt(language_hint: str) -> str:
     return f'''
@@ -216,7 +379,7 @@ async def call_code_rag(partial_openapi_spec: Dict[str, Any], repo_id: str, lang
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                settings.CODE_RAG_SERVICE_URL + "/query/stream",
+                f"{settings.CODE_RAG_SERVICE_URL}/query/stream",
                 json=payload,
                 headers=headers,
                 timeout=300
