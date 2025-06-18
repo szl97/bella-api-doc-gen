@@ -24,11 +24,15 @@ Bella API 文档生成服务依赖以下外部服务：
 * **Code-Aware-RAG：** 此服务是目标描述补全功能的先决条件。
     * **项目链接：** [Code-Aware-RAG](https://github.com/szl97/Code-Aware-RAG)
     * **说明：** 如果您打算使用描述补全功能，请确保在启动 Bella API 文档生成服务之前运行 Code-Aware-RAG 服务。
-    * **注意：** 如果 Code-Aware-RAG 服务中不存在代码索引，会先创建代码索引。如果存在索引，不会进行强制更新。需要用户自行判断何时进行索引更新，更新方式为调用 Code-Aware-RAG 服务的 `/v1/code-rag/repository/setup` 接口，指定 `force_reindex` 为 `true`，详情见项目链接。
+    * **重要提示：** 关于向量库更新的说明：
+        * 如果 Code-Aware-RAG 服务中项目的向量库不存在，系统会自动创建向量库。
+        * 如果 Code-Aware-RAG 服务中项目的向量库已存在，系统不会强制更新向量库。
+        * 如果需要更新向量库（例如代码有重大更新），需要手动调用 Code-Aware-RAG 服务的 `/v1/code-rag/repository/setup` 接口，并指定 `force_reindex` 和 `force_reclone` 参数为 `true`。
+        * 详细操作方法请参考 [Code-Aware-RAG 项目文档](https://github.com/szl97/Code-Aware-RAG)。
 
 ## API 端点
 
-所有 API 端点的基础 URL 假定为 `/v1/api-doc`（可能因部署而异）。
+所有 API 端点的基础 URL 为 `/v1/api-doc`。
 
 ### 身份验证
 
@@ -37,11 +41,11 @@ Bella API 文档生成服务依赖以下外部服务：
 
 此令牌在创建项目时由您定义，并且对该项目是唯一的。
 
-### 项目管理 (`/projects`)
+### 项目管理 (`/v1/api-doc/projects`)
 
-* **`POST /projects`**
+* **`POST /v1/api-doc/projects`**
     * **描述：** 注册新的文档生成项目。自动启动初始文档生成任务。
-    * **请求头：** `Authorization: Bearer {apikey}`（其中 `{apikey}` 是您用于创建项目的 API 密钥，不要与项目特定的 bearer 令牌混淆）。
+    * **请求头：** `Authorization: Bearer {apikey}`（其中 `{apikey}` 是您用于创建项目的 API 密钥，不要与创建后生成的项目特定 bearer 令牌混淆）。
     * **请求体：**
         * `name`（字符串，必需）：项目的唯一名称。
         * `source_openapi_url`（字符串，必需）：获取源 OpenAPI 3.0 JSON 规范的 URL。可以是公共 URL 或 Git 仓库中文件的 URL。
@@ -78,6 +82,95 @@ Bella API 文档生成服务依赖以下外部服务：
         }
         ```
 
+* **`GET /v1/api-doc/projects`**
+    * **描述：** 列出所有注册的项目。（注意：在生产环境中，此端点可能受到限制或需要管理员权限）。
+    * **响应：** 项目详情列表。排除敏感令牌。
+
+* **`GET /v1/api-doc/projects/{project_id}`**
+    * **描述：** 通过项目 ID 获取特定项目的详情。
+    * **响应：** 项目详情。排除敏感令牌。
+
+* **`PUT /v1/api-doc/projects/{project_id}`**
+    * **描述：** 更新现有项目的配置。需要该项目的 Bearer 令牌认证。
+    * **请求体：** 与项目创建类似（name、source_openapi_url、git_repo_url、git_auth_token），所有字段可选。也可以包含 `bearer_token` 来更新项目的 API 令牌。
+    * **响应：** 更新后的项目详情。
+
+* **`DELETE /v1/api-doc/projects/{project_id}`**
+    * **描述：** 删除注册的项目。需要该项目的 Bearer 令牌认证。
+    * **响应：** 被删除项目的详情。
+
+### 手动文档生成 (`/v1/api-doc/gen`)
+
+* **`POST /v1/api-doc/gen/{project_id}`**
+    * **描述：** 为特定项目触发文档生成和处理工作流。需要该项目的 Bearer 令牌认证。
+    * **响应（成功：202 Accepted）：** 确认消息和用于跟踪生成过程的 `task_id`。
+        ```json
+        {
+          "message": "Documentation generation process initiated for project: ExampleProjectName",
+          "task_id": "abc789def"
+        }
+        ```
+
+### 任务管理 (`/v1/api-doc/tasks`)
+
+* **`GET /v1/api-doc/tasks/{task_id}`**
+    * **描述：** 检索特定文档生成任务的状态和结果。
+    * **响应：** 
+        * `id`（字符串）：任务 ID。
+        * `project_id`（整数）：此任务所属项目的 ID。
+        * `status`（字符串）：任务的当前状态（例如，`pending`、`processing`、`success`、`failed`）。
+        * `created_at`（日期时间）：任务创建时间戳。
+        * `updated_at`（日期时间）：任务最后更新时间戳。
+        * `result`（字符串/json，可选）：任务完成时包含成功消息或结构化错误详情。
+        * `error_message`（字符串，可选）：如果任务失败，包含详细错误消息。
+    * **示例响应（成功）：**
+        ```json
+        {
+          "id": "xyz123abc",
+          "project_id": 1,
+          "status": "success",
+          "created_at": "2023-10-28T12:00:00Z",
+          "updated_at": "2023-10-28T12:05:00Z",
+          "result": "{"message": "OpenAPI documentation generated successfully."}",
+          "error_message": null
+        }
+        ```
+    * **示例响应（失败）：**
+        ```json
+        {
+          "id": "abc789def",
+          "project_id": 2,
+          "status": "failed",
+          "created_at": "2023-10-28T11:00:00Z",
+          "updated_at": "2023-10-28T11:01:00Z",
+          "result": "{"error": "Failed to fetch OpenAPI spec from source."}",
+          "error_message": "HTTPError: 404 Client Error: Not Found for url: https://invalid.url/openapi.json"
+        }
+        ```
+
+### OpenAPI 文档检索 (`/v1/api-doc/openapi`)
+
+* **`GET /v1/api-doc/{project_id}`**
+    * **描述：** 检索指定项目最新成功生成的 OpenAPI JSON 文档。
+    * **响应：** OpenAPI JSON 文档。
+    * **示例响应：**
+        ```json
+        {
+          "openapi": "3.0.0",
+          "info": {
+            "title": "Sample API",
+            "version": "1.0.0"
+          },
+          "paths": {
+            "/items": {
+              "get": {
+                "summary": "List all items"
+              }
+            }
+          }
+        }
+        ```
+
 ## 项目配置字段
 
 * `name`：（字符串，必需）项目的唯一名称。
@@ -88,19 +181,18 @@ Bella API 文档生成服务依赖以下外部服务：
 
 ## 工作流程概述
 
-1. **注册项目：** 使用 `POST /projects` 注册您的 API 项目。提供其 `name` 和 `source_openapi_url`。如果源规范在私有 Git 仓库中，还需提供 `git_repo_url` 和 `git_auth_token`。定义 `bearer_token` 以保护您的项目与 Bella 的 API 交互。
+1. **注册项目：** 使用 `POST /v1/api-doc/projects` 注册您的 API 项目。提供其 `name` 和 `source_openapi_url`。如果源规范在私有 Git 仓库中，还需提供 `git_repo_url` 和 `git_auth_token`。定义 `bearer_token` 以保护您的项目与 Bella 的 API 交互。
 2. **初始生成任务：** 注册成功后，Bella 自动触发初始文档生成任务。响应中返回 `task_id`。
-3. **跟踪任务状态：** 使用收到的 `task_id` 通过 `GET /tasks/{task_id}` 监控生成进度（状态：`pending` -> `processing` -> `success` 或 `failed`）。完成时 `result` 和 `error_message` 字段提供详细信息。
-4. **手动触发：** 要稍后更新文档，向 `/gen/{project_id}` 发送 `POST` 请求，使用项目的 `bearer_token` 进行认证。这也会返回一个 `task_id`。
+3. **跟踪任务状态：** 使用收到的 `task_id` 通过 `GET /v1/api-doc/tasks/{task_id}` 监控生成进度（状态：`pending` -> `processing` -> `success` 或 `failed`）。完成时 `result` 和 `error_message` 字段提供详细信息。
+4. **手动触发：** 要稍后更新文档，向 `/v1/api-doc/gen/{project_id}` 发送 `POST` 请求，使用项目的 `bearer_token` 进行认证。这也会返回一个 `task_id`。
 5. **获取源规范：** Bella 从 `source_openapi_url` 获取最新的 OpenAPI 规范（如果提供了 Git 凭证，则用于私有仓库）。
 6. **获取先前规范（用于对比）：** Bella 从其内部数据库中检索此项目最后成功生成的 OpenAPI 规范。
-7. **处理规范（概念性）：**
-    * Bella（概念上）计算新源规范与先前规范之间的差异。
-    * （未来）对于新的或修改的部分，它可以使用 LLM 应用描述补全。
-    * （未来）然后将更改合并到规范的新版本中。
-    * （目前）通过占位符描述补全处理整个获取的源规范。
+7. **处理规范：**
+    * Bella Docs 计算新源规范与先前规范之间的差异。
+    * 对于新的或修改的部分，它可以使用 LLM 应用描述补全。
+    * 然后将更改合并到规范的新版本中。
 8. **存储生成的规范：** 新处理的 OpenAPI 规范保存到 Bella 的数据库中，与项目和完成的任务关联。
-9. **检索生成的规范：** 一旦任务状态为 `success`，您可以通过 `GET /openapi/projects/{project_id}/openapi-json` 访问最新生成的 OpenAPI 文档。
+9. **检索生成的规范：** 一旦任务状态为 `success`，您可以通过 `GET /v1/api-doc/openapi/projects/{project_id}/openapi-json` 访问最新生成的 OpenAPI 文档。
 10. **状态更新：** 项目的主要状态（`active`、`failed`）反映其文档的整体健康状况。任务状态提供单个生成尝试的详细信息。
 
 ## 设置和运行（基础 - 概念性）
@@ -130,7 +222,7 @@ Bella API 文档生成服务依赖以下外部服务：
     uvicorn app.main:app --reload
     ```
     API 通常在 `http://127.0.0.1:8000` 可用。
-6. **使用 docker 启动：**
+6. **使用 Docker 启动：**
     ```bash
     docker build -t bella-api-doc-gen .
     docker run -d -p 8000:8000 --name bella-api-doc-gen bella-api-doc-gen

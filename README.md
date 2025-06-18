@@ -24,11 +24,15 @@ Bella API Doc Gen Service relies on the following external services:
 *   **Code-Aware-RAG:** This service is a prerequisite for the targeted description completion feature.
     *   **Project Link:** [Code-Aware-RAG](https://github.com/szl97/Code-Aware-RAG)
     *   **Instruction:** Ensure the Code-Aware-RAG service is running before starting Bella API Doc Gen Service, if you intend to use the description completion capabilities.
-    *   **Note:** If there is no code index in the Code Aware RAG service, a code index will be created first. If there is an index, no forced update will be performed. Users need to determine when to update the index themselves. The update method is to call the `/v1/code rag/repository/setup` interface of the Code Aware RAG service and specify `force_deindex` as `true`. For details, please refer to the project link.
+    *   **Important Note:** About vector database updates:
+        *   If the project's vector database does not exist in the Code-Aware-RAG service, the system will automatically create the vector database.
+        *   If the project's vector database already exists in the Code-Aware-RAG service, the system will not force an update to the vector database.
+        *   If you need to update the vector database (e.g., when there are significant code updates), you need to manually call the `/v1/code-rag/repository/setup` interface of the Code-Aware-RAG service and specify both `force_reindex` and `force_reclone` parameters as `true`.
+        *   For detailed operation instructions, please refer to the [Code-Aware-RAG project documentation](https://github.com/szl97/Code-Aware-RAG).
 
 ## API Endpoints
 
-The base URL for all API endpoints is assumed to be `/v1/api-doc` (this might vary based on deployment).
+The base URL for all API endpoints is `/v1/api-doc` .
 
 ### Authentication
 
@@ -37,9 +41,9 @@ Most project-specific endpoints (PUT, DELETE for projects, and triggering genera
 
 This token is defined by you when creating the project and is unique to that project.
 
-### Projects Management (`/projects`)
+### Projects Management (`/v1/api-doc/projects`)
 
-*   **`POST /projects`**
+*   **`POST /v1/api-doc/projects`**
     *   **Description:** Registers a new project for documentation generation. An initial documentation generation task is automatically started.
     *   **Request Header:** `Authorization: Bearer {apikey}` (where `{apikey}` is your chosen API key for creating projects, not to be confused with the project-specific bearer token generated upon creation).
     *   **Request Body:**
@@ -78,26 +82,26 @@ This token is defined by you when creating the project and is unique to that pro
         }
         ```
 
-*   **`GET /projects`**
+*   **`GET /v1/api-doc/projects`**
     *   **Description:** Lists all registered projects. (Note: This endpoint might be restricted or require admin privileges in a production environment).
     *   **Response:** A list of project details. Sensitive tokens are excluded.
 
-*   **`GET /projects/{project_id}`**
+*   **`GET /v1/api-doc/projects/{project_id}`**
     *   **Description:** Get details of a specific project by its ID.
     *   **Response:** Project details. Sensitive tokens are excluded.
 
-*   **`PUT /projects/{project_id}`**
+*   **`PUT /v1/api-doc/projects/{project_id}`**
     *   **Description:** Updates an existing project's configuration. Requires Bearer token authentication for this project.
     *   **Request Body:** Similar to project creation (name, source_openapi_url, git_repo_url, git_auth_token), all fields optional. Can also include `bearer_token` to update the project's API token.
     *   **Response:** The updated project details.
 
-*   **`DELETE /projects/{project_id}`**
+*   **`DELETE /v1/api-doc/projects/{project_id}`**
     *   **Description:** Deletes a registered project. Requires Bearer token authentication for this project.
     *   **Response:** The details of the deleted project.
 
-### Manual Documentation Generation (`/gen`)
+### Manual Documentation Generation (`/v1/api-doc/gen`)
 
-*   **`POST /gen/{project_id}`**
+*   **`POST /v1/api-doc/gen/{project_id}`**
     *   **Description:** Triggers the documentation generation and processing workflow for a specific project. Requires Bearer token authentication for this project.
     *   **Response (Success: 202 Accepted):** A confirmation message and a `task_id` for tracking the generation process.
         ```json
@@ -107,9 +111,9 @@ This token is defined by you when creating the project and is unique to that pro
         }
         ```
 
-### Task Management (`/tasks`)
+### Task Management (`/v1/api-doc/tasks`)
 
-*   **`GET /tasks/{task_id}`**
+*   **`GET /v1/api-doc/tasks/{task_id}`**
     *   **Description:** Retrieves the status and result of a specific documentation generation task.
     *   **Response:** 
         *   `id` (string): The Task ID.
@@ -144,9 +148,9 @@ This token is defined by you when creating the project and is unique to that pro
         }
         ```
 
-### OpenAPI Document Retrieval (`/openapi`)
+### OpenAPI Document Retrieval (`/v1/api-doc/openapi`)
 
-*   **`GET /{project_id}`**
+*   **`GET /v1/api-doc/{project_id}`**
     *   **Description:** Retrieves the latest successfully generated OpenAPI JSON document for the specified project.
     *   **Response:** The OpenAPI JSON document.
     *   **Example Response:**
@@ -177,19 +181,18 @@ This token is defined by you when creating the project and is unique to that pro
 
 ## Workflow Overview
 
-1.  **Register Project:** Use `POST /projects` to register your API project. Provide its `name` and `source_openapi_url`. If the source spec is in a private Git repository, also provide `git_repo_url` and `git_auth_token`. Define a `bearer_token` for securing your project's API interactions with Bella.
+1.  **Register Project:** Use `POST /v1/api-doc/projects` to register your API project. Provide its `name` and `source_openapi_url`. If the source spec is in a private Git repository, also provide `git_repo_url` and `git_auth_token`. Define a `bearer_token` for securing your project's API interactions with Bella.
 2.  **Initial Generation Task:** Upon successful registration, Bella automatically triggers an initial documentation generation task. A `task_id` is returned in the response.
-3.  **Track Task Status:** Use `GET /tasks/{task_id}` with the received `task_id` to monitor the generation progress (states: `pending` -> `processing` -> `success` or `failed`). The `result` and `error_message` fields provide details on completion.
-4.  **Manual Trigger:** To update the documentation later, make a `POST` request to `/gen/{project_id}`, authenticating with your project's `bearer_token`. This also returns a `task_id`.
+3.  **Track Task Status:** Use `GET /v1/api-doc/tasks/{task_id}` with the received `task_id` to monitor the generation progress (states: `pending` -> `processing` -> `success` or `failed`). The `result` and `error_message` fields provide details on completion.
+4.  **Manual Trigger:** To update the documentation later, make a `POST` request to `/v1/api-doc/gen/{project_id}`, authenticating with your project's `bearer_token`. This also returns a `task_id`.
 5.  **Fetch Source Spec:** Bella fetches the latest OpenAPI spec from the `source_openapi_url` (using Git credentials if provided for a private repo).
 6.  **Fetch Previous Spec (for diffing):** Bella retrieves the last successfully generated OpenAPI specification for this project from its internal database.
-7.  **Process Spec (Conceptual):**
-    *   Bella (conceptually) calculates the differences between the new source spec and the previous one.
-    *   (Future) For new or modified parts, it can apply description completion using an LLM.
-    *   (Future) The changes are then merged into a new version of the specification.
-    *   (Currently) The fetched source spec is processed as a whole by the placeholder description completion.
+7.  **Process Spec:**
+    *   Bella Docs calculates the differences between the new source spec and the previous one.
+    *   For new or modified parts, it can apply description completion using an LLM.
+    *   The changes are then merged into a new version of the specification.
 8.  **Store Generated Spec:** The newly processed OpenAPI specification is saved to Bella's database, associated with the project and the completed task.
-9.  **Retrieve Generated Spec:** Once the task status is `success`, you can access the latest generated OpenAPI document via `GET /openapi/projects/{project_id}/openapi-json`.
+9.  **Retrieve Generated Spec:** Once the task status is `success`, you can access the latest generated OpenAPI document via `GET /v1/api-doc/openapi/projects/{project_id}/openapi-json`.
 10. **Status Updates:** The project's main status (`active`, `failed`) reflects its overall health regarding documentation. Task statuses provide details on individual generation attempts.
 
 ## Setup & Running (Basic - Conceptual)
