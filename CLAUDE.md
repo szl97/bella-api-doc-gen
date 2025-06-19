@@ -18,8 +18,32 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 # Install dependencies
 pip install -r requirements.txt
 
+# Install test dependencies (optional, also included in requirements.txt)
+pip install -r requirements-test.txt
+
 # Create .env file with required settings:
 # DATABASE_URL, CODE_RAG_SERVICE_URL, GIT_REPOS_BASE_PATH
+```
+
+### Testing
+```bash
+# Run all tests
+pytest
+
+# Run with coverage report
+pytest --cov=app --cov-report=term-missing
+
+# Run specific test categories
+pytest -m api          # API endpoint tests
+pytest -m service      # Service layer tests
+pytest -m database     # Database tests
+pytest -m unit         # Unit tests
+pytest -m integration  # Integration tests
+
+# Run tests in specific directories
+pytest tests/test_api/
+pytest tests/test_crud/
+pytest tests/test_integration/
 ```
 
 ### Docker Operations
