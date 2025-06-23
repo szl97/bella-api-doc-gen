@@ -1,0 +1,667 @@
+{
+  "info": {
+    "name": "Bella API文档生成器",
+    "description": "完整的API端点调用演示集合，包含所有可用的API端点和示例请求",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{auth_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "api_base",
+      "value": "{{base_url}}/v1/api-doc",
+      "type": "string"
+    },
+    {
+      "key": "auth_token",
+      "value": "demo_token_12345",
+      "type": "string"
+    },
+    {
+      "key": "project_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "task_id",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "健康检查",
+      "item": [
+        {
+          "name": "检查服务健康状态",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "检查API服务是否正常运行，不需要认证"
+          },
+          "response": [
+            {
+              "name": "成功响应",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/health",
+                  "host": ["{{base_url}}"],
+                  "path": ["health"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"status\": \"healthy\",\n  \"message\": \"API服务运行正常\"\n}"
+            }
+          ]
+        }
+      ],
+      "description": "系统健康检查相关端点"
+    },
+    {
+      "name": "项目管理",
+      "item": [
+        {
+          "name": "创建项目",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// 测试响应状态码",
+                  "pm.test(\"状态码为201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "// 提取任务ID到变量",
+                  "if (pm.response.code === 201) {",
+                  "    const responseJson = pm.response.json();",
+                  "    if (responseJson.task_id) {",
+                  "        pm.collectionVariables.set(\"task_id\", responseJson.task_id);",
+                  "        console.log(\"任务ID已设置为: \" + responseJson.task_id);",
+                  "    }",
+                  "    if (responseJson.project_id) {",
+                  "        pm.collectionVariables.set(\"project_id\", responseJson.project_id);",
+                  "        console.log(\"项目ID已设置为: \" + responseJson.project_id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"演示项目\",\n  \"source_openapi_url\": \"https://petstore.swagger.io/v2/swagger.json\",\n  \"language\": \"Java\",\n  \"git_repo_url\": \"https://github.com/swagger-api/swagger-petstore.git\",\n  \"git_auth_token\": null\n}"
+            },
+            "url": {
+              "raw": "{{api_base}}/projects/",
+              "host": ["{{api_base}}"],
+              "path": ["projects", ""]
+            },
+            "description": "创建新的API文档项目，会自动触发初始文档生成"
+          },
+          "response": [
+            {
+              "name": "成功创建项目",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer demo_token_12345"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"演示项目\",\n  \"source_openapi_url\": \"https://petstore.swagger.io/v2/swagger.json\",\n  \"language\": \"Java\",\n  \"git_repo_url\": \"https://github.com/swagger-api/swagger-petstore.git\"\n}"
+                },
+                "url": {
+                  "raw": "{{api_base}}/projects/",
+                  "host": ["{{api_base}}"],
+                  "path": ["projects", ""]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"message\": \"项目创建成功，正在生成初始文档\",\n  \"task_id\": 1,\n  \"project_id\": 1\n}"
+            }
+          ]
+        },
+        {
+          "name": "获取项目列表",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/projects/list",
+              "host": ["{{api_base}}"],
+              "path": ["projects", "list"]
+            },
+            "description": "获取当前用户的所有项目列表，需要Bearer token认证"
+          },
+          "response": [
+            {
+              "name": "项目列表",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer demo_token_12345"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_base}}/projects/list",
+                  "host": ["{{api_base}}"],
+                  "path": ["projects", "list"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "[\n  {\n    \"id\": 1,\n    \"name\": \"演示项目\",\n    \"language\": \"Java\",\n    \"status\": \"active\",\n    \"created_at\": \"2024-01-15T10:30:00Z\",\n    \"updated_at\": \"2024-01-15T10:35:00Z\"\n  }\n]"
+            }
+          ]
+        },
+        {
+          "name": "获取项目详情",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/projects/{{project_id}}",
+              "host": ["{{api_base}}"],
+              "path": ["projects", "{{project_id}}"]
+            },
+            "description": "获取指定项目的详细信息，需要Bearer token认证且必须匹配项目的令牌"
+          },
+          "response": [
+            {
+              "name": "项目详情",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer demo_token_12345"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_base}}/projects/1",
+                  "host": ["{{api_base}}"],
+                  "path": ["projects", "1"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"id\": 1,\n  \"name\": \"演示项目\",\n  \"source_openapi_url\": \"https://petstore.swagger.io/v2/swagger.json\",\n  \"language\": \"Java\",\n  \"git_repo_url\": \"https://github.com/swagger-api/swagger-petstore.git\",\n  \"status\": \"active\",\n  \"created_at\": \"2024-01-15T10:30:00Z\",\n  \"updated_at\": \"2024-01-15T10:35:00Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "更新项目",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"更新后的演示项目\",\n  \"language\": \"Python\",\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{api_base}}/projects/{{project_id}}",
+              "host": ["{{api_base}}"],
+              "path": ["projects", "{{project_id}}"]
+            },
+            "description": "更新项目信息，需要Bearer token认证且必须匹配项目的令牌"
+          },
+          "response": [
+            {
+              "name": "更新成功",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer demo_token_12345"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"更新后的演示项目\",\n  \"language\": \"Python\"\n}"
+                },
+                "url": {
+                  "raw": "{{api_base}}/projects/1",
+                  "host": ["{{api_base}}"],
+                  "path": ["projects", "1"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"id\": 1,\n  \"name\": \"更新后的演示项目\",\n  \"language\": \"Python\",\n  \"status\": \"active\",\n  \"updated_at\": \"2024-01-15T11:00:00Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "删除项目",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/projects/{{project_id}}",
+              "host": ["{{api_base}}"],
+              "path": ["projects", "{{project_id}}"]
+            },
+            "description": "删除指定项目，需要Bearer token认证且必须匹配项目的令牌"
+          },
+          "response": [
+            {
+              "name": "删除成功",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer demo_token_12345"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_base}}/projects/1",
+                  "host": ["{{api_base}}"],
+                  "path": ["projects", "1"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"id\": 1,\n  \"name\": \"演示项目\",\n  \"status\": \"deleted\",\n  \"message\": \"项目已删除\"\n}"
+            }
+          ]
+        }
+      ],
+      "description": "项目的增删改查操作，包括创建、列表查询、详情查询、更新和删除"
+    },
+    {
+      "name": "文档生成",
+      "item": [
+        {
+          "name": "触发文档生成",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// 测试响应状态码",
+                  "pm.test(\"状态码为202\", function () {",
+                  "    pm.response.to.have.status(202);",
+                  "});",
+                  "",
+                  "// 提取任务ID到变量",
+                  "if (pm.response.code === 202) {",
+                  "    const responseJson = pm.response.json();",
+                  "    if (responseJson.task_id) {",
+                  "        pm.collectionVariables.set(\"task_id\", responseJson.task_id);",
+                  "        console.log(\"生成任务ID已设置为: \" + responseJson.task_id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": ""
+            },
+            "url": {
+              "raw": "{{api_base}}/gen/{{project_id}}",
+              "host": ["{{api_base}}"],
+              "path": ["gen", "{{project_id}}"]
+            },
+            "description": "手动触发指定项目的文档生成过程，需要Bearer token认证"
+          },
+          "response": [
+            {
+              "name": "生成任务已启动",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer demo_token_12345"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_base}}/gen/1",
+                  "host": ["{{api_base}}"],
+                  "path": ["gen", "1"]
+                }
+              },
+              "status": "Accepted",
+              "code": 202,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"message\": \"文档生成任务已启动\",\n  \"task_id\": 2\n}"
+            }
+          ]
+        }
+      ],
+      "description": "文档生成相关端点，用于手动触发文档生成过程"
+    },
+    {
+      "name": "任务管理",
+      "item": [
+        {
+          "name": "获取任务状态",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/tasks/{{task_id}}",
+              "host": ["{{api_base}}"],
+              "path": ["tasks", "{{task_id}}"]
+            },
+            "description": "获取任务的执行状态和结果，不需要认证"
+          },
+          "response": [
+            {
+              "name": "任务进行中",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{api_base}}/tasks/1",
+                  "host": ["{{api_base}}"],
+                  "path": ["tasks", "1"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"id\": 1,\n  \"project_id\": 1,\n  \"status\": \"in_progress\",\n  \"created_at\": \"2024-01-15T10:30:00Z\",\n  \"updated_at\": \"2024-01-15T10:32:00Z\",\n  \"result\": null,\n  \"error_message\": null\n}"
+            },
+            {
+              "name": "任务已完成",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{api_base}}/tasks/1",
+                  "host": ["{{api_base}}"],
+                  "path": ["tasks", "1"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"id\": 1,\n  \"project_id\": 1,\n  \"status\": \"completed\",\n  \"created_at\": \"2024-01-15T10:30:00Z\",\n  \"updated_at\": \"2024-01-15T10:35:00Z\",\n  \"result\": {\n    \"generated_docs_count\": 15,\n    \"enhanced_endpoints\": 8,\n    \"processing_time_seconds\": 45\n  },\n  \"error_message\": null\n}"
+            },
+            {
+              "name": "任务失败",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{api_base}}/tasks/1",
+                  "host": ["{{api_base}}"],
+                  "path": ["tasks", "1"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"id\": 1,\n  \"project_id\": 1,\n  \"status\": \"failed\",\n  \"created_at\": \"2024-01-15T10:30:00Z\",\n  \"updated_at\": \"2024-01-15T10:33:00Z\",\n  \"result\": null,\n  \"error_message\": \"Git仓库访问失败: 认证凭据无效\"\n}"
+            }
+          ]
+        }
+      ],
+      "description": "任务管理相关端点，用于跟踪异步任务的执行状态"
+    },
+    {
+      "name": "OpenAPI文档",
+      "item": [
+        {
+          "name": "获取OpenAPI规范",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/openapi/{{project_id}}",
+              "host": ["{{api_base}}"],
+              "path": ["openapi", "{{project_id}}"]
+            },
+            "description": "获取项目生成的完整OpenAPI规范，不需要认证"
+          },
+          "response": [
+            {
+              "name": "OpenAPI规范",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{api_base}}/openapi/1",
+                  "host": ["{{api_base}}"],
+                  "path": ["openapi", "1"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"openapi\": \"3.0.0\",\n  \"info\": {\n    \"title\": \"演示项目 API\",\n    \"description\": \"这是一个由Bella API文档生成器自动增强的API文档\",\n    \"version\": \"1.0.0\"\n  },\n  \"servers\": [\n    {\n      \"url\": \"https://api.example.com\",\n      \"description\": \"生产服务器\"\n    }\n  ],\n  \"paths\": {\n    \"/users\": {\n      \"get\": {\n        \"summary\": \"获取用户列表\",\n        \"description\": \"获取系统中所有用户的详细信息，支持分页和过滤功能\",\n        \"parameters\": [\n          {\n            \"name\": \"page\",\n            \"in\": \"query\",\n            \"description\": \"页码，从1开始\",\n            \"schema\": {\n              \"type\": \"integer\",\n              \"minimum\": 1,\n              \"default\": 1\n            }\n          }\n        ],\n        \"responses\": {\n          \"200\": {\n            \"description\": \"用户列表获取成功\",\n            \"content\": {\n              \"application/json\": {\n                \"schema\": {\n                  \"type\": \"object\",\n                  \"properties\": {\n                    \"users\": {\n                      \"type\": \"array\",\n                      \"items\": {\n                        \"$ref\": \"#/components/schemas/User\"\n                      }\n                    },\n                    \"total\": {\n                      \"type\": \"integer\",\n                      \"description\": \"用户总数\"\n                    }\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n  },\n  \"components\": {\n    \"schemas\": {\n      \"User\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"id\": {\n            \"type\": \"integer\",\n            \"description\": \"用户唯一标识符\"\n          },\n          \"name\": {\n            \"type\": \"string\",\n            \"description\": \"用户姓名\"\n          },\n          \"email\": {\n            \"type\": \"string\",\n            \"format\": \"email\",\n            \"description\": \"用户邮箱地址\"\n          }\n        },\n        \"required\": [\"id\", \"name\", \"email\"]\n      }\n    }\n  }\n}"
+            }
+          ]
+        }
+      ],
+      "description": "OpenAPI文档获取相关端点，用于获取生成的API规范"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// 预请求脚本：设置通用头部和变量",
+          "console.log('发起请求到: ' + pm.request.url);",
+          "",
+          "// 检查是否需要认证",
+          "if (pm.request.auth && pm.request.auth.type === 'bearer') {",
+          "    console.log('使用Bearer token认证');",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// 通用测试脚本：验证响应格式",
+          "pm.test('响应时间小于5秒', function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+          "});",
+          "",
+          "pm.test('响应包含Content-Type头部', function () {",
+          "    pm.response.to.have.header('Content-Type');",
+          "});",
+          "",
+          "// 如果响应是JSON，验证JSON格式",
+          "if (pm.response.headers.get('Content-Type') && pm.response.headers.get('Content-Type').includes('application/json')) {",
+          "    pm.test('响应是有效的JSON', function () {",
+          "        pm.response.to.be.json;",
+          "    });",
+          "}"
+        ]
+      }
+    }
+  ]
+}
