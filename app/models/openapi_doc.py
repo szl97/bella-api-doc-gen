@@ -15,7 +15,7 @@ class OpenAPIDoc(Base):
     # Using JSON type if available, fallback to TEXT.
     # For SQLite, JSON type is often emulated as TEXT.
     openapi_spec = Column(JSON, nullable=False) 
-    created_at = Column(DateTime, default=func.now())
+    created_at = Column(DateTime, default=func.now(), index=True)
 
     def __repr__(self):
         return f"<OpenAPIDoc(id={self.id}, project_id={self.project_id}, task_id={self.task_id})>"

@@ -102,3 +102,14 @@ The RAG integration is specifically designed for Chinese API documentation gener
 
 ### Database Initialization
 Tables are auto-created on startup via `init_db()` in `main.py`. In production, this should be replaced with proper Alembic migrations.
+
+### Database Performance Configuration
+For MySQL production deployments, ensure adequate memory allocation to prevent sort buffer errors:
+```sql
+-- Recommended MySQL configuration values
+SET GLOBAL sort_buffer_size = 2097152;  -- 2MB minimum
+SET GLOBAL read_buffer_size = 131072;   -- 128KB
+SET GLOBAL innodb_buffer_pool_size = '75%';  -- 75% of available RAM
+```
+
+The `openapi_docs` table stores large JSON documents. Queries are optimized to minimize memory usage during sorting operations.
