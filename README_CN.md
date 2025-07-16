@@ -21,14 +21,47 @@ Bella API 文档生成是一个自动生成和更新 OpenAPI 3.0 文档的 API �
 
 Bella API 文档生成服务依赖以下外部服务：
 
-* **Code-Aware-RAG：** 此服务是目标描述补全功能的先决条件。
-    * **项目链接：** [Code-Aware-RAG](https://github.com/szl97/Code-Aware-RAG)
-    * **说明：** 如果您打算使用描述补全功能，请确保在启动 Bella API 文档生成服务之前运行 Code-Aware-RAG 服务。
-    * **重要提示：** 关于向量库更新的说明：
-        * 如果 Code-Aware-RAG 服务中项目的向量库不存在，系统会自动创建向量库。
-        * 如果 Code-Aware-RAG 服务中项目的向量库已存在，系统不会强制更新向量库。
-        * 如果需要更新向量库（例如代码有重大更新），需要手动调用 Code-Aware-RAG 服务的 `/v1/code-rag/repository/setup` 接口，并指定 `force_reindex` 和 `force_reclone` 参数为 `true`。
-        * 详细操作方法请参考 [Code-Aware-RAG 项目文档](https://github.com/szl97/Code-Aware-RAG)。
+### **Code-Aware-RAG** 此服务是目标描述补全功能的先决条件。
+
+**项目链接：** [Code-Aware-RAG](https://github.com/szl97/Code-Aware-RAG)
+**说明：** 如果您打算使用描述补全功能，请确保在启动 Bella API 文档生成服务之前运行 Code-Aware-RAG 服务。
+**重要提示：** 关于向量库更新的说明：
+- 如果 Code-Aware-RAG 服务中项目的向量库不存在，系统会自动创建向量库。
+- 如果 Code-Aware-RAG 服务中项目的向量库已存在，系统不会强制更新向量库。
+- 如果需要更新向量库（例如代码有重大更新），需要手动调用 Code-Aware-RAG 服务的 `/v1/code-rag/repository/setup` 接口，并指定 `force_reindex` 和 `force_reclone` 参数为 `true`。
+- 详细操作方法请参考 [Code-Aware-RAG 项目文档](https://github.com/szl97/Code-Aware-RAG)。
+
+### Code-Aware-RAG使用说明
+#### 使用API:
+- 新项目或者重大更新后重新索引仓库:
+    - 向 POST /v1/code-rag/repository/setup 端点发送请求。
+    - 请求头: `Authorization: Bearer {apikey}` （仅在`未配置apikey模式`下需要）
+      请求体示例:
+      ```json
+      {  
+        "repo_id": "bella-issues-bot",  
+        "repo_url_or_path": "https://github.com/szl97/bella-issues-bot.git",  
+        "force_reclone": true,  
+        "force_reindex": true  
+      }  
+      ```
+        * 此操作在后台运行并立即返回任务ID。
+        * `repo_id` 是你为这个仓库指定的唯一标识符。
+        * `force_reclone`和`force_reindex`会重新索引。
+
+- 查询仓库设置状态:
+    - 向 GET /v1/code-rag/repository/status/{repo_id} 端点发送请求。
+    - 请求头: `Authorization: Bearer {apikey}` （仅在`未配置apikey模式`下需要）
+    * 响应示例:
+       ```json
+       {
+      "repo_id": "bella-issues-bot",
+      "status": "completed",  // "pending"(进行中), "completed"(完成), 或 "failed"(失败)
+      "message": "Repository setup process completed", 
+      "index_status": "Indexed Successfully",
+      "repository_path": "/path/to/repository"
+       }
+       ```
 
 ## API 端点
 
@@ -115,7 +148,7 @@ Bella API 文档生成服务依赖以下外部服务：
 
 * **`GET /v1/api-doc/tasks/{task_id}`**
     * **描述：** 检索特定文档生成任务的状态和结果。
-    * **响应：** 
+    * **响应：**
         * `id`（字符串）：任务 ID。
         * `project_id`（整数）：此任务所属项目的 ID。
         * `status`（字符串）：任务的当前状态（例如，`pending`、`processing`、`success`、`failed`）。
@@ -221,7 +254,7 @@ Bella API 文档生成服务依赖以下外部服务：
     ```bash
     uvicorn app.main:app --reload
     ```
-    API 通常在 `http://127.0.0.1:8000` 可用。
+   API 通常在 `http://127.0.0.1:8000` 可用。
 6. **使用 Docker 启动：**
     ```bash
     docker build -t bella-api-doc-gen .
@@ -251,15 +284,15 @@ Bella API 文档生成服务依赖以下外部服务：
 您可以通过以下几种方式设置此 `DATABASE_URL`：
 
 1. **通过环境变量（推荐）：**
-    在运行应用程序之前设置 `DATABASE_URL` 环境变量：
+   在运行应用程序之前设置 `DATABASE_URL` 环境变量：
     ```bash
     export DATABASE_URL="mysql+mysqlconnector://USER:PASSWORD@HOST:PORT/DATABASE_NAME"
     uvicorn app.main:app --reload
     ```
-    这是推荐的方法，特别是在生产环境中，因为它具有安全性和灵活性。
+   这是推荐的方法，特别是在生产环境中，因为它具有安全性和灵活性。
 
 2. **直接在 `app/core/config.py` 中：**
-    您也可以在 `app/core/config.py` 中的 `Settings` 类中硬编码它（尽管这不太灵活，不推荐在生产环境中使用敏感凭证）：
+   您也可以在 `app/core/config.py` 中的 `Settings` 类中硬编码它（尽管这不太灵活，不推荐在生产环境中使用敏感凭证）：
     ```python
     # 在 app/core/config.py 中
     class Settings(BaseSettings):

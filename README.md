@@ -19,16 +19,47 @@ Bella API Doc Gen is an API service designed to automatically generate and updat
 
 ## Dependencies
 
-Bella API Doc Gen Service relies on the following external services:
+### **Code-Aware-RAG** This service is a prerequisite for the targeted description completion feature.
 
-*   **Code-Aware-RAG:** This service is a prerequisite for the targeted description completion feature.
-    *   **Project Link:** [Code-Aware-RAG](https://github.com/szl97/Code-Aware-RAG)
-    *   **Instruction:** Ensure the Code-Aware-RAG service is running before starting Bella API Doc Gen Service, if you intend to use the description completion capabilities.
-    *   **Important Note:** About vector database updates:
-        *   If the project's vector database does not exist in the Code-Aware-RAG service, the system will automatically create the vector database.
-        *   If the project's vector database already exists in the Code-Aware-RAG service, the system will not force an update to the vector database.
-        *   If you need to update the vector database (e.g., when there are significant code updates), you need to manually call the `/v1/code-rag/repository/setup` interface of the Code-Aware-RAG service and specify both `force_reindex` and `force_reclone` parameters as `true`.
-        *   For detailed operation instructions, please refer to the [Code-Aware-RAG project documentation](https://github.com/szl97/Code-Aware-RAG).
+**Project Link:** [Code-Aware-RAG](https://github.com/szl97/Code-Aware-RAG)
+**Description:** If you plan to use the description completion feature, please ensure that the Code-Aware-RAG service is running before starting the Bella API documentation generation service.
+**Important Note:** About vector database updates:
+- If the vector database for a project in the Code-Aware-RAG service does not exist, the system will automatically create it.
+- If the vector database for a project in the Code-Aware-RAG service already exists, the system will not force update it.
+- If you need to update the vector database (e.g., after major code updates), you need to manually call the `/v1/code-rag/repository/setup` endpoint of the Code-Aware-RAG service and set both `force_reindex` and `force_reclone` parameters to `true`.
+- For detailed operation instructions, please refer to the [Code-Aware-RAG project documentation](https://github.com/szl97/Code-Aware-RAG).
+
+### Code-Aware-RAG Usage Instructions
+#### Using API:
+- Re-index repository for new projects or after major updates:
+    - Send a request to POST /v1/code-rag/repository/setup endpoint.
+    - Request Header: `Authorization: Bearer {apikey}` (only required in `non-configured apikey mode`)
+      Request body example:
+      ```json
+      {  
+        "repo_id": "bella-issues-bot",  
+        "repo_url_or_path": "https://github.com/szl97/bella-issues-bot.git",  
+        "force_reclone": true,  
+        "force_reindex": true  
+      }  
+      ```
+        * This operation runs in the background and immediately returns a task ID.
+        * `repo_id` is the unique identifier you specify for this repository.
+        * `force_reclone` and `force_reindex` will trigger re-indexing.
+
+- Query repository setup status:
+    - Send a request to GET /v1/code-rag/repository/status/{repo_id} endpoint.
+    - Request Header: `Authorization: Bearer {apikey}` (only required in `non-configured apikey mode`)
+    * Response example:
+       ```json
+       {
+      "repo_id": "bella-issues-bot",
+      "status": "completed",  // "pending"(in progress), "completed"(finished), or "failed"(failed)
+      "message": "Repository setup process completed", 
+      "index_status": "Indexed Successfully",
+      "repository_path": "/path/to/repository"
+       }
+       ```
 
 ## API Endpoints
 
